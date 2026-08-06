@@ -17,16 +17,15 @@ const CHAINS = [
  {id:"THE CLINIC",country:"CHILE",flag:"🇨🇱"}, {id:"EX-ANTE",country:"CHILE",flag:"🇨🇱"},
  {id:"PULSO",country:"CHILE",flag:"🇨🇱"},
 ]
-
 const GOLD="#D4AF37", BG="#080800", CARD="#121208", BORDER="#2A2610"
 const COUNTRIES=[{name:"ALL",flag:"🌐"},{name:"USA",flag:"🇺🇸"},{name:"UK",flag:"🇬🇧"},{name:"ESPAÑA",flag:"🇪🇸"},{name:"FRANCIA",flag:"🇫🇷"},{name:"CHILE",flag:"🇨🇱"}]
 
-function matchSource(source:string, chainId:string){
-  const s=(source||"").toUpperCase().trim()
-  const c=chainId.toUpperCase().trim()
-  if(c==="W.POST") return s.includes("WASHINGTON")||s==="W.POST"
-  if(c==="CNN CHILE") return s==="CNN CHILE"
-  return s===c
+function matchSource(s:string,c:string){
+ const src=(s||"").toUpperCase().trim()
+ const cid=c.toUpperCase().trim()
+ if(cid==="W.POST") return src.includes("WASHINGTON")||src==="W.POST"
+ if(cid==="CNN CHILE") return src==="CNN CHILE"
+ return src===cid
 }
 
 export default function Page(){
@@ -34,25 +33,33 @@ export default function Page(){
  const [countrySel,setCountrySel]=useState("ALL")
  const [chainSel,setChainSel]=useState<string|null>(null)
  const [q,setQ]=useState("")
- const [secondsLeft,setSecondsLeft]=useState(300)
- const [lastUpdate,setLastUpdate]=useState<Date>(new Date())
+ const [sec,setSec]=useState(300)
+ const [last,setLast]=useState(new Date())
+ const [loading,setLoading]=useState(false)
 
- const fetchNews = async()=>{
-  const url=process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  if(!url||!key) return
-  const {createClient}=await import("@supabase/supabase-js")
-  const supa=createClient(url,key)
-  const {data}=await supa.from("news").select("*").order("created_at",{ascending:false}).limit(500)
-  if(data){ setAll(data); setLastUpdate(new Date()); setSecondsLeft(300) }
+ const fetchNews=async()=>{
+  setLoading(true)
+  try{
+   const url=process.env.NEXT_PUBLIC_SUPABASE_URL
+   const key=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+   if(!url||!key) return
+   const {createClient}=await import("@supabase/supabase-js")
+   const supa=createClient(url,key)
+   const {data}=await supa.from("news").select("*").order("created_at",{ascending:false}).limit(500)
+   if(data){ setAll(data); setLast(new Date()); setSec(300) }
+   // vibración al pulsar
+   if("vibrate" in navigator) navigator.vibrate(80)
+  } finally { setLoading(false) }
  }
 
  useEffect(()=>{ fetchNews() },[])
 
- // TIMER 5 MIN
  useEffect(()=>{
   const iv=setInterval(()=>{
-   setSecondsLeft(s=>{
+   setSec(s=>{
+    if(s===61){ // entra en rojo
+     if("vibrate" in navigator) navigator.vibrate([100,50,100])
+    }
     if(s<=1){ fetchNews(); return 300 }
     return s-1
    })
@@ -60,17 +67,12 @@ export default function Page(){
   return ()=>clearInterval(iv)
  },[])
 
- const isRed = secondsLeft <= 60
- const mins = Math.floor(secondsLeft/60)
- const secs = secondsLeft%60
+ const isRed=sec<=60
+ const m=Math.floor(sec/60)
+ const s=sec%60
 
- const counts=useMemo(()=>{
-  const m:any={}
-  CHAINS.forEach(c=>{ m[c.id]=all.filter(n=>matchSource(n.source,c.id)).length })
-  return m
- },[all])
-
- const countryTotals=useMemo(()=>{
+ const counts=useMemo(()=>{ const o:any={}; CHAINS.forEach(c=>o[c.id]=all.filter(n=>matchSource(n.source,c.id)).length); return o },[all])
+ const totals=useMemo(()=>{
   const t:any={ALL:all.length}
   COUNTRIES.forEach(co=>{
    if(co.name==="ALL") return
@@ -84,72 +86,61 @@ export default function Page(){
  if(chainSel) f=f.filter(n=>matchSource(n.source,chainSel))
  if(q) f=f.filter(n=>(n.title||"").toLowerCase().includes(q.toLowerCase()))
 
- const chainsToShow=countrySel==="ALL"?[]:CHAINS.filter(c=>c.country===countrySel)
-
  return (
   <div style={{background:BG,minHeight:"100vh",padding:"0 0 100px"}}>
    <div style={{position:"sticky",top:0,zIndex:20,background:BG,padding:"12px",borderBottom:"1px solid "+BORDER}}>
-
-    {/* HEADER CON SEMAFORO */}
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-     <h1 style={{fontWeight:900,margin:0,fontSize:22,color:GOLD}}>JANUS V3 ✓ <span style={{fontSize:11,color:"#666"}}>{f.length}/{all.length}</span></h1>
-     <button onClick={fetchNews} style={{
+     <h1 style={{fontWeight:900,margin:0,fontSize:20,color:GOLD}}>JANUS V3 ✓ <span style={{fontSize:10,color:"#666"}}>{f.length}/{all.length}</span></h1>
+     <button onClick={fetchNews} disabled={loading} style={{
       display:"flex",alignItems:"center",gap:6,
-      background:isRed?"#FF1A1A":"#00C853", color:isRed?"#fff":"#000",
-      border:"none", borderRadius:20, padding:"6px 12px", fontWeight:900, fontSize:12,
-      boxShadow: isRed? "0 0 12px #FF1A1A" : "0 0 10px #00C853",
-      transition:"all 0.3s"
+      background: loading? "#333" : isRed? "#FF1A1A" : "#00C853",
+      color: loading? "#888" : isRed? "#fff" : "#000",
+      border:"none", borderRadius:20, padding:"7px 14px", fontWeight:900, fontSize:13,
+      boxShadow: loading? "none" : isRed? "0 0 15px #FF1A1A" : "0 0 10px #00C853",
+      transform: isRed? "scale(1.05)" : "scale(1)",
+      transition:"all 0.3s",
+      cursor:"pointer"
      }}>
-      <span style={{width:8,height:8,borderRadius:"50%",background:"#fff",display:"inline-block",animation:isRed?"pulse 0.8s infinite":"none"}}></span>
-      {mins}:{secs.toString().padStart(2,"0")}
+      <span style={{
+       width:9,height:9,borderRadius:"50%",background:"#fff",display:"inline-block",
+       animation: isRed? "pulse 0.7s infinite" : "pulseGreen 2s infinite"
+      }}></span>
+      {loading? "⟳" : `${m}:${s.toString().padStart(2,"0")}`}
      </button>
     </div>
-    <div style={{fontSize:9,color:"#666",marginTop:4}}>Actualizado: {lastUpdate.toLocaleTimeString("es-CL")} • Próxima en {mins}m {secs}s {isRed?"⚠️":""}</div>
-
+    <div style={{fontSize:9,color:isRed?"#FF6B6B":"#666",marginTop:4}}>
+     {loading? "Actualizando..." : `Actualizado: ${last.toLocaleTimeString("es-CL")} • ${isRed?"🔴 Actualiza en ":"🟢 Próxima en "}${m}m ${s}s`}
+    </div>
     <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Buscar en 26 cadenas..." style={{width:"100%",marginTop:8,background:"#151308",border:"1px solid "+BORDER,borderRadius:10,padding:"10px 12px",color:"#fff",outline:"none"}}/>
-
     <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:5,marginTop:10}}>
      {COUNTRIES.map(co=>{
-      const active=countrySel===co.name
-      const total=countryTotals[co.name]||0
-      return (
-       <button key={co.name} onClick={()=>{setCountrySel(co.name);setChainSel(null)}} style={{background:active?GOLD:"#151308",color:active?"#000":total>0?"#FFEB99":"#555",border:"1.5px solid "+(active?GOLD:BORDER),borderRadius:12,padding:"8px 1px",display:"flex",flexDirection:"column",alignItems:"center",gap:3,minHeight:64}}>
-        <span style={{fontSize:20}}>{co.flag}</span>
-        <span style={{fontSize:7.5,fontWeight:900}}>{co.name}</span>
-        <span style={{fontSize:10,fontWeight:900,background:active?"#000":GOLD,color:active?GOLD:"#000",borderRadius:10,padding:"1px 6px"}}>{total}</span>
-       </button>
-      )
+      const act=countrySel===co.name
+      return <button key={co.name} onClick={()=>{setCountrySel(co.name);setChainSel(null)}} style={{background:act?GOLD:"#151308",color:act?"#000":totals[co.name]>0?"#FFEB99":"#555",border:"1.5px solid "+(act?GOLD:BORDER),borderRadius:12,padding:"8px 1px",display:"flex",flexDirection:"column",alignItems:"center",gap:3,minHeight:64}}>
+       <span style={{fontSize:20}}>{co.flag}</span><span style={{fontSize:7.5,fontWeight:900}}>{co.name}</span>
+       <span style={{fontSize:10,fontWeight:900,background:act?"#000":GOLD,color:act?GOLD:"#000",borderRadius:10,padding:"1px 6px"}}>{totals[co.name]||0}</span>
+      </button>
      })}
     </div>
-
     {countrySel!=="ALL"&&(
      <div style={{marginTop:10,background:"#0F0F06",border:"1px solid "+BORDER,borderRadius:12,padding:8}}>
       <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:5}}>
-       {chainsToShow.map(c=>{
-        const active=chainSel===c.id
-        const cnt=counts[c.id]||0
-        return (
-         <button key={c.id} onClick={()=>setChainSel(active?null:c.id)} style={{background:active?GOLD:cnt>0?"#1F1B08":"#111",color:active?"#000":cnt>0?"#FFEB99":"#333",border:"1px solid "+(active?GOLD:BORDER),borderRadius:10,padding:"6px 2px",minHeight:42,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:2}}>
-          <span style={{fontSize:9,fontWeight:900}}>{c.id}</span>
-          <span style={{fontSize:10,fontWeight:900,background:active?"#000":cnt>0?GOLD:"#222",color:active?GOLD:cnt>0?"#000":"#555",borderRadius:8,padding:"1px 6px"}}>{cnt}</span>
-         </button>
-        )
+       {CHAINS.filter(c=>c.country===countrySel).map(c=>{
+        const act=chainSel===c.id
+        return <button key={c.id} onClick={()=>setChainSel(act?null:c.id)} style={{background:act?GOLD:counts[c.id]>0?"#1F1B08":"#111",color:act?"#000":counts[c.id]>0?"#FFEB99":"#333",border:"1px solid "+(act?GOLD:BORDER),borderRadius:10,padding:"6px 2px",minHeight:42,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:2}}>
+         <span style={{fontSize:9,fontWeight:900}}>{c.id}</span><span style={{fontSize:10,fontWeight:900,background:act?"#000":counts[c.id]>0?GOLD:"#222",color:act?GOLD:counts[c.id]>0?"#000":"#555",borderRadius:8,padding:"1px 6px"}}>{counts[c.id]}</span>
+        </button>
        })}
       </div>
      </div>
     )}
    </div>
-
    <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8,marginTop:10,padding:"0 10px"}}>
-    {f.map((n:any)=>(
-     <div key={n.id} style={{background:CARD,border:"1px solid "+BORDER,borderTop:"2px solid "+GOLD,borderRadius:12,padding:10}}>
-      <div style={{fontSize:12,fontWeight:700,color:"#fff",lineHeight:"14px",minHeight:38}}>{n.title}</div>
-      <div style={{fontSize:9,marginTop:6,color:GOLD,display:"flex",justifyContent:"space-between"}}><span>{n.source}</span><span style={{color:"#666"}}>{new Date(n.created_at).toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit"})}</span></div>
-     </div>
-    ))}
+    {f.map((n:any)=><div key={n.id} style={{background:CARD,border:"1px solid "+BORDER,borderTop:"2px solid "+GOLD,borderRadius:12,padding:10}}>
+     <div style={{fontSize:12,fontWeight:700,color:"#fff",lineHeight:"14px",minHeight:38}}>{n.title}</div>
+     <div style={{fontSize:9,marginTop:6,color:GOLD,display:"flex",justifyContent:"space-between"}}><span>{n.source}</span><span style={{color:"#666"}}>{new Date(n.created_at).toLocaleTimeString("es-CL",{hour:"2-digit",minute:"2-digit"})}</span></div>
+    </div>)}
    </div>
-
-   <style>{`@keyframes pulse{0%{opacity:1}50%{opacity:0.3}100%{opacity:1}}`}</style>
+   <style>{`@keyframes pulse{0%{transform:scale(1);opacity:1}50%{transform:scale(1.5);opacity:0.5}100%{transform:scale(1);opacity:1}} @keyframes pulseGreen{0%{opacity:1}50%{opacity:0.6}100%{opacity:1}}`}</style>
   </div>
  )
 }
