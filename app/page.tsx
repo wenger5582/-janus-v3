@@ -42,7 +42,7 @@ function sacarCadena(item) {
   const low = t.toLowerCase()
   if (low.indexOf('bbc')!== -1) return 'BBC'
   if (low.indexOf('guardian')!== -1) return 'GUARDIAN'
-  if (low.indexOf('biobio')!== -1) return 'BIOBIO'
+  if (low.indexOf('bio')!== -1) return 'BIOBIO'
   if (low.indexOf('emol')!== -1) return 'EMOL'
   if (low.indexOf('tercera')!== -1) return 'LA TERCERA'
   if (low.indexOf('elpais')!== -1) return 'EL PAIS'
@@ -54,6 +54,8 @@ export default function Page() {
   const [pais, setPais] = useState('ALL')
   const [cadena, setCadena] = useState('ALL')
   const [buscar, setBuscar] = useState('')
+  const [limite, setLimite] = useState('20')
+  const [pagina, setPagina] = useState(1)
   const [hora, setHora] = useState('')
   const [segundos, setSegundos] = useState(300)
   const [sel, setSel] = useState(null)
@@ -87,6 +89,8 @@ export default function Page() {
     }, 1000)
     return function(){ clearInterval(t) }
   }, [])
+
+  useEffect(() => { setPagina(1) }, [pais, cadena, buscar, limite])
 
   const traducir = async (texto, lang) => {
     if(!texto) return ''
@@ -159,6 +163,11 @@ export default function Page() {
     return okCadena && okBuscar
   })
 
+  const itemsPorPagina = limite === 'TODAS'? final.length : parseInt(limite)
+  const totalPaginas = Math.ceil(final.length / itemsPorPagina) || 1
+  const inicio = (pagina - 1) * itemsPorPagina
+  const visibles = final.slice(inicio, inicio + itemsPorPagina)
+
   return (
     <div style={{ background: '#000', minHeight: '100vh', color: 'white' }}>
       <style>{'@keyframes latir{0%{transform:scale(1)}50%{transform:scale(1.4)}100%{transform:scale(1)}}.latir{animation:latir 1s infinite}'}</style>
@@ -171,10 +180,21 @@ export default function Page() {
         </div>
       </div>
 
-      <div style={{ padding: '0 12px', color: '#666', fontSize: 12, marginBottom: 10 }}>Actualizado: {hora} - {final.length}/{noticias.length}</div>
+      <div style={{ padding: '0 12px', color: '#666', fontSize: 12, marginBottom: 10 }}>Actualizado: {hora} - Pagina {pagina} de {totalPaginas} - {final.length}/{noticias.length}</div>
 
-      <div style={{ padding: '0 12px', marginBottom: 12 }}>
+      <div style={{ padding: '0 12px', marginBottom: 8 }}>
         <input placeholder="Buscar..." value={buscar} onChange={function(e){ setBuscar(e.target.value) }} style={{ width: '100%', background: '#141414', border: '1px solid #2a2a2a', borderRadius: 14, padding: '14px', color: 'white' }} />
+      </div>
+
+      <div style={{ padding: '0 12px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ color: '#888', fontSize: 13 }}>Por pagina:</div>
+        <select value={limite} onChange={function(e){ setLimite(e.target.value) }} style={{ background: '#141414', color: 'white', border: '1px solid #2a2a2a', borderRadius: 12, padding: '10px 16px', fontWeight: 800 }}>
+          <option value="10">10</option>
+          <option value="20">20</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+          <option value="TODAS">TODAS</option>
+        </select>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, padding: '0 12px' }}>
@@ -203,8 +223,8 @@ export default function Page() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, padding: '0 12px 20px' }}>
-        {final.map(function(n){
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, padding: '0 12px 12px' }}>
+        {visibles.map(function(n){
           return (
             <div key={n.id} onClick={function(){ abrir(n) }} style={{ background: '#141414', borderRadius: 20, overflow: 'hidden', border: '1px solid #222' }}>
               <div style={{ position: 'relative', height: 120 }}>
@@ -217,6 +237,12 @@ export default function Page() {
             </div>
           )
         })}
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10, padding: '0 12px 24px' }}>
+        <button disabled={pagina === 1} onClick={function(){ setPagina(pagina - 1); window.scrollTo(0,0) }} style={{ background: pagina === 1? '#222' : '#c9a86a', color: pagina === 1? '#666' : 'black', borderRadius: 20, padding: '12px 18px', fontWeight: 900, border: '1px solid #333', opacity: pagina === 1? 0.5 : 1 }}>‹ Anterior</button>
+        <div style={{ background: '#141414', borderRadius: 20, padding: '10px 16px', border: '1px solid #2a2a2a', fontWeight: 800, fontSize: 13 }}>{pagina} / {totalPaginas}</div>
+        <button disabled={pagina === totalPaginas} onClick={function(){ setPagina(pagina + 1); window.scrollTo(0,0) }} style={{ background: pagina === totalPaginas? '#222' : '#c9a86a', color: pagina === totalPaginas? '#666' : 'black', borderRadius: 20, padding: '12px 18px', fontWeight: 900, border: '1px solid #333', opacity: pagina === totalPaginas? 0.5 : 1 }}>Siguiente ›</button>
       </div>
 
       {sel && (
