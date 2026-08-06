@@ -80,9 +80,10 @@ export default function Page() {
     if (!texto) return
     setTraduciendo(true)
     try {
-      const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(texto)}&langpair=auto|${lang}`)
+      const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${lang}&dt=t&q=${encodeURIComponent(texto)}`)
       const json = await res.json()
-      setTraducido(json.responseData?.translatedText || texto)
+      const trad = json[0]?.map((p:any)=>p[0]).join('') || texto
+      setTraducido(trad)
     } catch {
       setTraducido(texto)
     }
@@ -93,7 +94,7 @@ export default function Page() {
     if (sel) {
       setIdioma('es')
       setTraducido(sel.title)
-      if (sel.title) traducirTexto(sel.title, 'es')
+      traducirTexto(sel.title, 'es')
     }
   }, [sel])
 
