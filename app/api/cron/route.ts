@@ -6,18 +6,37 @@ export async function GET() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
-  // Noticias de prueba para que JANUS deje de estar en 0/0
-  const testNews = [
-    { title: 'TEST JANUS FUNCIONANDO 1 - ' + Date.now(), link: 'https://test.com/' + Date.now() + '1', source: 'TEST' },
-    { title: 'TEST JANUS FUNCIONANDO 2 - ' + Date.now(), link: 'https://test.com/' + Date.now() + '2', source: 'TEST' },
-    { title: 'Boric anuncia nueva medida economica', link: 'https://test.com/' + Date.now() + '3', source: 'CHILE' },
-    { title: 'Ultima hora USA: mercados suben', link: 'https://test.com/' + Date.now() + '4', source: 'USA' },
-    { title: 'España: elecciones en camino', link: 'https://test.com/' + Date.now() + '5', source: 'ESPAÑA' },
+  const feeds = [
+    { url: 'https://news.google.com/rss?hl=es-419&gl=CL&ceid=CL:es-419&hl=es', source: 'CHILE' },
+    { url: 'https://news.google.com/rss?hl=en-US&gl=US&ceid=US:en', source: 'USA' },
+    { url: 'https://news.google.com/rss?hl=es&gl=ES&ceid=ES:es', source: 'ESPAÑA' },
+    { url: 'https://news.google.com/rss?hl=en-GB&gl=GB&ceid=GB:en', source: 'UK' },
   ]
 
-  const { data, error } = await supabase.from('news').upsert(testNews, { onConflict: 'link' }).select()
+  let allNews: any[] = []
 
-  if (error) return Response.json({ ok: false, supabase_error: error, has_url: !!process.env.NEXT_PUBLIC_SUPABASE_URL })
+  for (const feed of feeds) {
+    try {
+      const res = await fetch(feed.url, { headers: { 'User-Agent': 'Mozilla/5.0' } })
+      const rss = await res.text()
+      const re = /<item>[\s\S]*?<title>(.*?)<\/title>[\s\S]*?<link>(.*?)<\/link>/g
+      let m
+      let count = 0
+      while ((m = re.exec(rss))!== null && count < 10) {
+        const title = m[1].replace('<![CDATA[','').replace(']]>','').split(' - ')[0].trim()
+        allNews.push({ title: title, link: m[2].trim(), source: feed.source })
+        count++
+      }
+    } catch {}
+  }
 
-  return Response.json({ ok: true, inserted: data?.length || 0, test: 'funcionando' })
+  if (allNews.length === 0) {
+    return Response.json({ ok: false, error: 'No feeds' })
+  }
+
+  const { data, error } = await supabase.from('news').upsert(allNews, { onConflict: 'link' }).select()
+
+  if (error) return Response.json({ ok: false, supabase_error: error })
+
+  return Response.json({ ok: true, inserted: data?.length })
 }
