@@ -53,11 +53,20 @@ export default function Page(){
   });return m
  },[all])
 
+ // FIX: TOTALES UNICOS POR PAIS (no suma)
  const countryTotals=useMemo(()=>{
   const t:Record<string,number>={ALL:all.length}
   COUNTRIES.forEach(co=>{
    if(co.name==="ALL") return
-   t[co.name]=CHAINS.filter(c=>c.country===co.name).reduce((s,c)=>s+(counts[c.id]||0),0)
+   const chainsOfCountry = CHAINS.filter(c=>c.country===co.name).map(c=>c.id)
+   const unique = all.filter(n=>{
+    const txt = (JSON.stringify(n)+" "+(n.source||"")).toUpperCase()
+    return chainsOfCountry.some(cid=>{
+      if(cid==="W.POST") return txt.includes("WASHINGTON")
+      return txt.includes(cid)
+    })
+   }).length
+   t[co.name]=unique
   });return t
  },[counts,all])
 
@@ -76,8 +85,6 @@ export default function Page(){
    <div style={{position:"sticky",top:0,zIndex:20,background:BG,padding:"12px",borderBottom:`1px solid ${BORDER}`}}>
     <h1 style={{fontWeight:900,margin:0,fontSize:26,color:GOLD}}>JANUS V3 ✓ <span style={{fontSize:11,color:"#666"}}>{f.length}/{all.length}</span></h1>
     <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Buscar en 26 cadenas..." style={{width:"100%",marginTop:8,background:"#151308",border:`1px solid ${BORDER}`,borderRadius:10,padding:"10px 12px",color:"#fff",outline:"none"}}/>
-
-    {/* 6 BANDERAS EN 6 COLUMNAS - AHORA CON ALL */}
     <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:5,marginTop:12}}>
      {COUNTRIES.map(co=>{
       const active=countrySel===co.name
@@ -89,14 +96,12 @@ export default function Page(){
         display:"flex",flexDirection:"column",alignItems:"center",gap:3,minHeight:64
        }}>
         <span style={{fontSize:20}}>{co.flag}</span>
-        <span style={{fontSize:7.5,fontWeight:900,letterSpacing:0.3}}>{co.name}</span>
+        <span style={{fontSize:7.5,fontWeight:900}}>{co.name}</span>
         <span style={{fontSize:10,fontWeight:900,background:active?"#000":GOLD,color:active?GOLD:"#000",borderRadius:10,padding:"1px 6px"}}>{total}</span>
        </button>
       )
      })}
     </div>
-
-    {/* SOLO MUESTRA CADENAS SI NO ES ALL */}
     {countrySel!=="ALL" && (
     <div style={{marginTop:10,background:"#0F0F06",border:`1px solid ${BORDER}`,borderRadius:12,padding:8}}>
      <div style={{display:"flex",justifyContent:"space-between",marginBottom:6,padding:"0 4px"}}>
@@ -119,10 +124,8 @@ export default function Page(){
        )
       })}
      </div>
-    </div>
     )}
    </div>
-
    <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8,marginTop:10,padding:"0 10px"}}>
     {f.map((n:any)=><div key={n.id} style={{background:CARD,border:`1px solid ${BORDER}`,borderTop:`2px solid ${GOLD}`,borderRadius:12,padding:10}}>
       <div style={{fontSize:12,fontWeight:700,color:"#fff",lineHeight:"14px",minHeight:38}}>{n.title}</div>
