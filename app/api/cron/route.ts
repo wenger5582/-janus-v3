@@ -24,7 +24,10 @@ export async function GET(){
  let total=0
  for(const chain of CHAINS){
   try{
-   const res = await fetch(chain.url, {headers:{'User-Agent':'Mozilla/5.0'}}, {cache:'no-store'} as any)
+   const res = await fetch(chain.url, {
+     headers:{'User-Agent':'Mozilla/5.0'},
+     cache:'no-store'
+   })
    const text = await res.text()
    const matches = [...text.matchAll(/<item>[\s\S]*?<title>([\s\S]*?)<\/title>[\s\S]*?<link>([\s\S]*?)<\/link>/gi)].slice(0,10)
    for(const m of matches){
