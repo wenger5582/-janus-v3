@@ -1,28 +1,26 @@
 import { createClient } from '@supabase/supabase-js'
-export const dynamic = 'force-dynamic'
-export async function GET(){
- const supa=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
- const feeds=[
-  {id:'EMOL',url:'https://www.emol.com/rss/Emol.xml'},
-  {id:'BIOBIO',url:'https://www.biobiochile.cl/feed/'},
-  {id:'T13',url:'https://www.t13.cl/rss/'},
- ]
- let t=0
- for(const f of feeds){
-  try{
-   const xml=await (await fetch(f.url,{cache:'no-store'})).text()
-   const re=/<title>(.*?)<\/title>[\s\S]*?<link>(.*?)<\/link>/g
-   let m:any; let c=0
-   while((m=re.exec(xml))&&c<10){
-    if(c>0){
-     const title=m[1].replace(/<!\[CDATA\[|\]\]>/g,'').slice(0,200)
-     const link=m[2].replace(/<!\[CDATA\[|\]\]>/g,'').trim()
-     await supa.from('news').upsert({title,source:f.id,link},{onConflict:'link'})
-     t++
-    }
-    c++
-   }
-  }catch{}
- }
- return Response.json({ok:true,inserted:t})
+
+export async function GET() {
+  try {
+    const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+
+    const rss = await fetch('https://www.biobiochile.cl/lista-categorias/nacional/rss.xml').then(r=>r.text())
+    const matches = [...rss.matchAll(/<title><!\[CDATA\[(.*?)\]\]><\/title>.*?<link>(.*?)<\/link>/gs)].slice(1, 15)
+
+    const news = matches.map(m=>({
+      title: m[1].trim(),
+      link: m[2].trim(),
+      source: 'BIOBIO'
+    }))
+
+    if(news.length === 0) return Response.json({ ok:false, error: 'RSS vacio', rss_preview: rss.slice(0,200) })
+
+    const { data, error } = await supabase.from('news').upsert(news, { onConflict: 'link', ignoreDuplicates: false }).select()
+
+    if(error) return Response.json({ ok:false, supabase_error: error })
+
+    return Response.json({ ok:true, inserted: data?.length || 0, sample: news[0] })
+  } catch(e:any) {
+    return Response.json({ ok:false, crash: e.message })
+  }
 }
