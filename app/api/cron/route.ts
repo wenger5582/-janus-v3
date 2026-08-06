@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 export const dynamic = 'force-dynamic'
+
 export async function GET() {
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
   const feeds = [
@@ -14,14 +15,18 @@ export async function GET() {
     try {
       const r = await fetch(f.url, { cache: 'no-store' })
       const xml = await r.text()
-      const items = [...xml.matchAll(/<title>(.*?)<\/title>[\s\S]*?<link>(.*?)<\/link>/g)].slice(1, 11)
-      for (const it of items) {
-        const title = it[1].replace(/<!\[CDATA\[|\]\]>/g,'').slice(0,200)
-        const link = it[2].replace(/<!\[CDATA\[|\]\]>/g,'').trim()
+      const regex = /<title>(.*?)<\/title>[\s\S]*?<link>(.*?)<\/link>/g
+      let match: RegExpExecArray | null
+      let count = 0
+      while ((match = regex.exec(xml))!== null && count < 10) {
+        if (count === 0) { count++; continue }
+        const title = match[1].replace(/<!\[CDATA\[|\]\]>/g,'').replace(/<[^>]*>/g,'').slice(0,200).trim()
+        const link = match[2].replace(/<!\[CDATA\[|\]\]>/g,'').trim()
         if (title.length > 5) {
           await supabase.from('news').upsert({ title, source: f.id, link }, { onConflict: 'link' })
           total++
         }
+        count++
       }
     } catch (e) {}
   }
