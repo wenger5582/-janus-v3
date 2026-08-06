@@ -32,6 +32,15 @@ const COUNTRIES=[
  {name:"CHILE",flag:"🇨🇱"},
 ]
 
+function matchSource(source:string, chainId:string){
+  const s=(source||"").toUpperCase().trim()
+  const c=chainId.toUpperCase().trim()
+  if(c==="W.POST") return s==="W.POST" || s.includes("WASHINGTON POST") || s==="WP"
+  if(c==="CNN CHILE") return s==="CNN CHILE"
+  if(c==="EL PAIS") return s==="EL PAIS"
+  return s===c
+}
+
 export default function Page(){
  const [all,setAll]=useState<any[]>([])
  const [countrySel,setCountrySel]=useState("ALL")
@@ -54,39 +63,26 @@ export default function Page(){
  const counts=useMemo(()=>{
   const m:any={}
   CHAINS.forEach(c=>{
-   m[c.id]=all.filter(n=>{
-    const t=(JSON.stringify(n)+" "+(n.source||"")).toUpperCase()
-    if(c.id==="W.POST") return t.includes("WASHINGTON")
-    return t.includes(c.id)
-   }).length
+   m[c.id]=all.filter(n=>matchSource(n.source,c.id)).length
   })
   return m
  },[all])
 
  const countryTotals=useMemo(()=>{
-  const t:any={ALL:all.length}
+  const t:any={}
+  t["ALL"]=all.length
   COUNTRIES.forEach(co=>{
    if(co.name==="ALL") return
    const ids=CHAINS.filter(c=>c.country===co.name).map(c=>c.id)
-   const unique=all.filter(n=>{
-    const txt=(JSON.stringify(n)+" "+(n.source||"")).toUpperCase()
-    return ids.some(cid=>{
-     if(cid==="W.POST") return txt.includes("WASHINGTON")
-     return txt.includes(cid)
-    })
-   }).length
+   const unique=all.filter(n=> ids.some(id=>matchSource(n.source,id)) ).length
    t[co.name]=unique
   })
   return t
- },[all,counts])
+ },[all])
 
  let f=all
  if(chainSel){
-  f=f.filter(n=>{
-   const txt=(JSON.stringify(n)+" "+(n.source||"")).toUpperCase()
-   if(chainSel==="W.POST") return txt.includes("WASHINGTON")
-   return txt.includes(chainSel)
-  })
+  f=f.filter(n=>matchSource(n.source,chainSel))
  }
  if(q){
   f=f.filter(n=>(n.title||"").toLowerCase().includes(q.toLowerCase()))
