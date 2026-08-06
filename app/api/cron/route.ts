@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 
 export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 const CHAINS = [
  {id:'WSJ', url:'https://feeds.a.dj.com/rss/RSSWorldNews.xml'},
@@ -22,21 +23,29 @@ const CHAINS = [
 ]
 
 export async function GET(){
- const supa = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
- let total=0
- for(const chain of CHAINS){
-  try{
-   const res = await fetch(chain.url, {headers:{'User-Agent':'Mozilla/5.0'}, cache:'no-store'})
-   const text = await res.text()
-   const matches = [...text.matchAll(/<item>[\s\S]*?<title>([\s\S]*?)<\/title>[\s\S]*?<link>([\s\S]*?)<\/link>/gi)].slice(0,10)
-   for(const m of matches){
-    const title = m[1].replace(/<!\[CDATA\[|\]\]>/g,'').replace(/<[^>]*>/g,'').trim().substring(0,250)
-    const link = m[2].replace(/<!\[CDATA\[|\]\]>/g,'').trim()
-    if(title.length<10) continue
-    await supa.from('news').upsert({title, source:chain.id, link, created_at:new Date().toISOString()}, {onConflict:'link'})
-    total++
-   }
-  }catch(e){ console.log('Error',chain.id,e) }
+ try{
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  const supa = createClient(url, key)
+  let total=0
+  let errors:any[]=[]
+
+  for(const chain of CHAINS){
+   try{
+    const res = await fetch(chain.url, {headers:{'User-Agent':'Mozilla/5.0'}, cache:'no-store', next:{revalidate:0} as any})
+    const text = await res.text()
+    const matches = [...text.matchAll(/<item>[\s\S]*?<title>([\s\S]*?)<\/title>[\s\S]*?<link>([\s\S]*?)<\/link>/gi)].slice(0,10)
+    for(const m of matches){
+     const title = m[1].replace(/<!\[CDATA\[|\]\]>/g,'').replace(/<[^>]*>/g,'').trim().substring(0,250)
+     const link = m[2].replace(/<!\[CDATA\[|\]\]>/g,'').trim()
+     if(title.length<10) continue
+     const {error} = await supa.from('news').upsert({title, source:chain.id, link, created_at:new Date().toISOString()}, {onConflict:'link'})
+     if(!error) total++
+    }
+   }catch(e:any){ errors.push(chain.id+': '+e.message) }
+  }
+  return Response.json({ok:true, inserted:total, errors, time:new Date().toISOString()})
+ } catch(e:any){
+  return Response.json({ok:false, error:e.message}, {status:500})
  }
- return Response.json({ok:true, inserted:total, time:new Date().toISOString()})
 }
