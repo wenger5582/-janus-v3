@@ -20,6 +20,7 @@ const CHAINS: Chain[] = [
 ]
 const GOLD="#D4AF37", BG="#080800", CARD="#121208", BORDER="#2A2610"
 const COUNTRIES = [
+  {name:"ALL", flag:"🌐"},
   {name:"USA", flag:"🇺🇸"}, {name:"UK", flag:"🇬🇧"},
   {name:"ESPAÑA", flag:"🇪🇸"}, {name:"FRANCIA", flag:"🇫🇷"},
   {name:"CHILE", flag:"🇨🇱"},
@@ -27,7 +28,7 @@ const COUNTRIES = [
 
 export default function Page(){
  const [all,setAll]=useState<any[]>([])
- const [countrySel,setCountrySel]=useState<string>("USA")
+ const [countrySel,setCountrySel]=useState<string>("ALL")
  const [chainSel,setChainSel]=useState<string|null>(null)
  const [q,setQ]=useState("")
  useEffect(()=>{
@@ -53,11 +54,12 @@ export default function Page(){
  },[all])
 
  const countryTotals=useMemo(()=>{
-  const t:Record<string,number>={}
+  const t:Record<string,number>={ALL:all.length}
   COUNTRIES.forEach(co=>{
+   if(co.name==="ALL") return
    t[co.name]=CHAINS.filter(c=>c.country===co.name).reduce((s,c)=>s+(counts[c.id]||0),0)
   });return t
- },[counts])
+ },[counts,all])
 
  let f=all
  if(chainSel) f=f.filter(n=>{
@@ -67,7 +69,7 @@ export default function Page(){
  })
  if(q) f=f.filter(n=>(n.title||"").toLowerCase().includes(q.toLowerCase()))
 
- const chainsToShow = CHAINS.filter(c=>c.country===countrySel)
+ const chainsToShow = countrySel==="ALL"?[]:CHAINS.filter(c=>c.country===countrySel)
 
  return(
   <div style={{background:BG,minHeight:"100vh",padding:"0 0 100px"}}>
@@ -75,26 +77,27 @@ export default function Page(){
     <h1 style={{fontWeight:900,margin:0,fontSize:26,color:GOLD}}>JANUS V3 ✓ <span style={{fontSize:11,color:"#666"}}>{f.length}/{all.length}</span></h1>
     <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Buscar en 26 cadenas..." style={{width:"100%",marginTop:8,background:"#151308",border:`1px solid ${BORDER}`,borderRadius:10,padding:"10px 12px",color:"#fff",outline:"none"}}/>
 
-    {/* 5 BANDERAS EN 5 COLUMNAS */}
-    <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:6,marginTop:12}}>
+    {/* 6 BANDERAS EN 6 COLUMNAS - AHORA CON ALL */}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:5,marginTop:12}}>
      {COUNTRIES.map(co=>{
       const active=countrySel===co.name
       const total=countryTotals[co.name]||0
       return(
        <button key={co.name} onClick={()=>{setCountrySel(co.name);setChainSel(null)}} style={{
         background:active?GOLD:"#151308", color:active?"#000": total>0?"#FFEB99":"#555",
-        border:`1.5px solid ${active?GOLD:BORDER}`, borderRadius:12, padding:"8px 2px",
+        border:`1.5px solid ${active?GOLD:BORDER}`, borderRadius:12, padding:"8px 1px",
         display:"flex",flexDirection:"column",alignItems:"center",gap:3,minHeight:64
        }}>
-        <span style={{fontSize:22}}>{co.flag}</span>
-        <span style={{fontSize:8,fontWeight:900,letterSpacing:0.5}}>{co.name}</span>
-        <span style={{fontSize:10,fontWeight:900,background:active?"#000":GOLD,color:active?GOLD:"#000",borderRadius:10,padding:"1px 7px"}}>{total}</span>
+        <span style={{fontSize:20}}>{co.flag}</span>
+        <span style={{fontSize:7.5,fontWeight:900,letterSpacing:0.3}}>{co.name}</span>
+        <span style={{fontSize:10,fontWeight:900,background:active?"#000":GOLD,color:active?GOLD:"#000",borderRadius:10,padding:"1px 6px"}}>{total}</span>
        </button>
       )
      })}
     </div>
 
-    {/* DESPLEGABLE DE CADENAS DEL PAIS */}
+    {/* SOLO MUESTRA CADENAS SI NO ES ALL */}
+    {countrySel!=="ALL" && (
     <div style={{marginTop:10,background:"#0F0F06",border:`1px solid ${BORDER}`,borderRadius:12,padding:8}}>
      <div style={{display:"flex",justifyContent:"space-between",marginBottom:6,padding:"0 4px"}}>
       <span style={{fontSize:10,color:"#FFEB99",fontWeight:900}}>{COUNTRIES.find(c=>c.name===countrySel)?.flag} {countrySel} • {chainsToShow.length} cadenas</span>
@@ -117,6 +120,7 @@ export default function Page(){
       })}
      </div>
     </div>
+    )}
    </div>
 
    <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8,marginTop:10,padding:"0 10px"}}>
