@@ -55,22 +55,39 @@ export default function Page() {
 
   return (
     <div style={{ background: '#0a0a0a', minHeight: '100vh', color: 'white', paddingBottom: 20 }}>
-      <style>{`@keyframes pulse { 0% { transform: scale(1) } 50% { transform: scale(1.2) } 100% { transform: scale(1) } }.pulse { animation: pulse 0.7s infinite; }`}</style>
+      <style>{`@keyframes pulse { 0% { transform: scale(1) } 50% { transform: scale(1.25) } 100% { transform: scale(1) } }.pulse { animation: pulse 0.7s infinite; }`}</style>
+
       <div style={{ paddingTop: 'max(16px, env(safe-area-inset-top))', paddingLeft: 12, paddingRight: 12, paddingBottom: 8, position: 'sticky', top: 0, background: '#0a0a0a', zIndex: 10 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h1 style={{ color: '#c9a86a', fontWeight: 900, fontSize: 24, margin: 0 }}>JANUS V3 ✓</h1>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
 
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            {/* BOTON VERDE HASTA EL MINUTO */}
             {!isRed && (
-              <button onClick={load} style={{ width: 42, height: 42, borderRadius: 99, background: '#22c55e', border: 'none', fontSize: 20, cursor: 'pointer' }}>✓</button>
+              <button onClick={load} title="Actualizar al instante" style={{
+                width: 40, height: 40, borderRadius: 99,
+                background: 'radial-gradient(circle at 30% 30%, #dcfce7, #22c55e 45%, #14532d)',
+                border: '2px solid #16a34a',
+                boxShadow: 'inset 0 3px 5px rgba(255,255,255,1), inset 0 -5px 7px rgba(0,0,0,0.5), 0 3px 8px rgba(0,0,0,0.5), 0 0 14px rgba(34,197,94,0.7)',
+                cursor: 'pointer'
+              }}></button>
             )}
-            {/* BOTON ROJO DESPUES DEL MINUTO */}
             {isRed && (
-              <button onClick={load} className="pulse" style={{ width: 48, height: 48, borderRadius: 99, background: '#ef4444', border: 'none', fontSize: 24, cursor: 'pointer', color: 'white' }}>↻</button>
+              <button onClick={load} className="pulse" title="¡Actualizar ahora!" style={{
+                width: 48, height: 48, borderRadius: 99,
+                background: 'radial-gradient(circle at 30% 30%, #fee2e2, #ef4444 45%, #7f1d1d)',
+                border: '2px solid #b91c1c',
+                boxShadow: 'inset 0 3px 6px rgba(255,255,255,1), inset 0 -7px 10px rgba(0,0,0,0.6), 0 5px 12px rgba(0,0,0,0.6), 0 0 22px rgba(239,68,68,0.9)',
+                cursor: 'pointer'
+              }}></button>
             )}
-            {/* RELOJ AL LADO */}
-            <div className={isRed? 'pulse' : ''} style={{ background: isRed? '#ef4444' : '#22c55e', color: isRed? 'white' : 'black', borderRadius: 20, padding: '7px 14px', fontWeight: 900, fontSize: 14 }}>
+
+            <div className={isRed? 'pulse' : ''} style={{
+              background: isRed? 'linear-gradient(180deg, #f87171, #991b1b)' : 'linear-gradient(180deg, #4ade80, #15803d)',
+              color: isRed? 'white' : 'black',
+              borderRadius: 20, padding: '8px 16px', fontWeight: 900, fontSize: 14,
+              border: '1px solid rgba(255,255,255,0.4)',
+              boxShadow: 'inset 0 1px 2px rgba(255,255,255,0.9), 0 3px 6px rgba(0,0,0,0.5)'
+            }}>
               ● {Math.floor(countdown/60)}:{(countdown%60).toString().padStart(2,'0')}
             </div>
           </div>
