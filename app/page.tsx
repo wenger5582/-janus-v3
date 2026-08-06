@@ -2,7 +2,6 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
-
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
 
 const PAISES = [
@@ -20,8 +19,26 @@ const IDIOMAS = [
   { id: 'ru', label: 'Русский', flag: '🇷🇺' },
 ]
 
+function decodificarGoogleNews(url: string) {
+  try {
+    if (!url.includes('news.google.com')) return url
+    const match = url.match(/articles\/([A-Za-z0-9_-]+)/)
+    if (!match) return url
+    let str = match[1].replace(/-/g, '+').replace(/_/g, '/')
+    while (str.length % 4) str += '='
+    const decoded = atob(str)
+    // Busca la URL real dentro del binario
+    const m = decoded.match(/https?:\/\/[^"\x00-\x1F\s]+/)
+    if (m) {
+      return m[0].replace(/[\x08\x0B\x0C]+/g, '').split('\x00')[0]
+    }
+    return url
+  } catch { return url }
+}
+
 function sacarCadena(item: any) {
-  const t = `${item.link || ''} ${item.url || ''} ${item.title || ''}`.toLowerCase()
+  const real = decodificarGoogleNews(item.link || item.url || '')
+  const t = `${real} ${item.title || ''}`.toLowerCase()
   if (t.includes('bbc')) return 'BBC'
   if (t.includes('guardian')) return 'GUARDIAN'
   if (t.includes('sky')) return 'SKY NEWS'
@@ -32,9 +49,7 @@ function sacarCadena(item: any) {
   if (t.includes('elpais')) return 'EL PAIS'
   if (t.includes('elmundo')) return 'EL MUNDO'
   if (t.includes('lemonde')) return 'LE MONDE'
-  if (t.includes('lefigaro')) return 'LE FIGARO'
-  if (t.includes('news.google')) return 'GOOGLE'
-  return 'OTROS'
+  return 'GOOGLE'
 }
 
 export default function Page() {
@@ -51,20 +66,18 @@ export default function Page() {
   const [contenidoTrad, setContenidoTrad] = useState('')
   const [cargando, setCargando] = useState(false)
   const [traduciendo, setTraduciendo] = useState(false)
-  const [esGoogle, setEsGoogle] = useState(false)
 
   const cargar = async () => {
     const { data } = await supabase.from('news').select('*').order('created_at', { ascending: false }).limit(200)
-    if (data) setNoticias(data.map((n: any) => ({...n, cadena: sacarCadena(n) })))
+    if (data) setNoticias(data.map((n: any) => {
+      const realLink = decodificarGoogleNews(n.link || n.url)
+      return {...n, realLink, cadena: sacarCadena({...n, link: realLink})}
+    }))
     setHora(new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }))
     setSegundos(300)
   }
 
-  useEffect(() => {
-    cargar()
-    const t = setInterval(() => setSegundos(s => (s <= 1? (cargar(), 300) : s - 1)), 1000)
-    return () => clearInterval(t)
-  }, [])
+  useEffect(() => { cargar(); const t = setInterval(() => setSegundos(s => s <= 1? (cargar(), 300) : s - 1), 1000); return () => clearInterval(t) }, [])
 
   const traducir = async (texto: string, lang: string) => {
     if (!texto) return ''
@@ -76,40 +89,28 @@ export default function Page() {
   }
 
   const traerArticulo = async (url: string) => {
-    if (!url || url.includes('news.google.com')) return ''
     setCargando(true)
     try {
       const r = await fetch(`https://r.jina.ai/${url}`)
       const txt = await r.text()
-      if (txt.includes('AbuseAlleviation') || txt.includes('"code":403')) return ''
-      return txt.slice(0, 5000)
+      if (txt.includes('AbuseAlleviation') || txt.length < 100) return ''
+      return txt.slice(0, 6000)
     } catch { return '' }
     finally { setCargando(false) }
   }
 
   const abrir = async (item: any) => {
-    const link = item.link || item.url || ''
-    const esG = link.includes('news.google.com')
     setSel(item)
-    setEsGoogle(esG)
     setIdioma('es')
     setTituloTrad(item.title)
-    setContenidoOrig('')
-    setContenidoTrad(esG? '' : 'Extrayendo noticia completa...')
-
-    if (esG) {
-      const t1 = await traducir(item.title, 'es')
-      setTituloTrad(t1)
-      setContenidoTrad('⚠️ Esta noticia viene de Google News. Google bloqueó temporalmente la extracción automática hasta hoy a las 20:37 GMT por exceso de tráfico. Pulsa "Leer fuente original" abajo para verla completa directamente en el diario.')
-      return
-    }
-
-    const full = await traerArticulo(link)
-    const base = full || item.description || item.content || ''
+    setContenidoTrad('Extrayendo noticia completa del diario original...')
+    const realUrl = item.realLink || decodificarGoogleNews(item.link || item.url)
+    const full = await traerArticulo(realUrl)
+    const base = full || item.description || ''
     setContenidoOrig(base)
     setTraduciendo(true)
     const t1 = await traducir(item.title, 'es')
-    const t2 = base? await traducir(base.slice(0, 2000), 'es') : 'Sin contenido extra. Pulsa fuente original.'
+    const t2 = base? await traducir(base.slice(0, 2500), 'es') : 'No se pudo extraer, pulsa fuente original.'
     setTituloTrad(t1)
     setContenidoTrad(t2)
     setTraduciendo(false)
@@ -119,28 +120,25 @@ export default function Page() {
     setIdioma(lang)
     setTraduciendo(true)
     const t1 = await traducir(sel.title, lang)
-    const t2 = esGoogle? contenidoTrad : await traducir(contenidoOrig.slice(0, 2000), lang)
+    const t2 = await traducir(contenidoOrig.slice(0, 2500), lang)
     setTituloTrad(t1)
-    if (!esGoogle) setContenidoTrad(t2)
+    setContenidoTrad(t2)
     setTraduciendo(false)
   }
 
   const porPais = noticias.filter(n => {
     if (pais === 'ALL') return true
-    if (pais === 'FRANCIA') return n.source?.toUpperCase() === 'FRANCIA' || ['LE MONDE', 'LE FIGARO'].includes(n.cadena)
-    if (pais === 'ESPAÑA') return n.source?.toUpperCase() === 'ESPAÑA' || ['EL PAIS', 'EL MUNDO'].includes(n.cadena)
+    if (pais === 'FRANCIA') return n.source?.toUpperCase() === 'FRANCIA' || ['LE MONDE'].includes(n.cadena)
+    if (pais === 'ESPAÑA') return n.source?.toUpperCase() === 'ESPAÑA' || ['EL PAIS','EL MUNDO'].includes(n.cadena)
     return n.source?.toUpperCase() === pais
   })
-
   const cadenas = Array.from(new Set(porPais.map(n => n.cadena))).sort()
-  const contar: any = {}
-  porPais.forEach(n => { contar[n.cadena] = (contar[n.cadena] || 0) + 1 })
+  const contar: any = {}; porPais.forEach(n => { contar[n.cadena] = (contar[n.cadena] || 0) + 1 })
   const final = porPais.filter(n => (cadena === 'ALL' || n.cadena === cadena) && n.title.toLowerCase().includes(buscar.toLowerCase()))
 
   return (
     <div style={{ background: '#000', minHeight: '100vh', color: 'white' }}>
       <style>{`@keyframes latir{0%{transform:scale(1)}50%{transform:scale(1.4)}100%{transform:scale(1)}}.latir{animation:latir 1s infinite}`}</style>
-
       <div style={{ padding: '16px 12px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1 style={{ color: '#c9a86a', margin: 0, fontWeight: 900 }}>JANUS V3</h1>
         <div style={{ background: '#c9a86a', borderRadius: 20, padding: '8px 14px', fontWeight: 900, display: 'flex', alignItems: 'center', gap: 8, color: 'black' }}>
@@ -148,68 +146,30 @@ export default function Page() {
           {Math.floor(segundos / 60)}:{(segundos % 60).toString().padStart(2, '0')}
         </div>
       </div>
-
       <div style={{ padding: '0 12px', color: '#666', fontSize: 12, marginBottom: 10 }}>Actualizado: {hora} • {final.length}/{noticias.length}</div>
-
-      <div style={{ padding: '0 12px', marginBottom: 12 }}>
-        <input placeholder="Buscar..." value={buscar} onChange={e => setBuscar(e.target.value)} style={{ width: '100%', background: '#141414', border: '1px solid #2a2a2a', borderRadius: 14, padding: '14px', color: 'white' }} />
-      </div>
-
+      <div style={{ padding: '0 12px', marginBottom: 12 }}><input placeholder="Buscar..." value={buscar} onChange={e => setBuscar(e.target.value)} style={{ width: '100%', background: '#141414', border: '1px solid #2a2a2a', borderRadius: 14, padding: '14px', color: 'white' }} /></div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, padding: '0 12px' }}>
-        {PAISES.map(p => {
-          const activo = pais === p.id
-          return (
-            <button key={p.id} onClick={() => { setPais(p.id); setCadena('ALL') }} style={{ background: activo? '#c9a86a' : '#141414', color: activo? 'black' : 'white', borderRadius: 20, padding: '16px 6px', border: '1px solid #2a2a2a', fontWeight: 800 }}>
-              <div style={{ fontSize: 28 }}>{p.flag}</div>
-              <div style={{ marginTop: 6 }}>{p.label}</div>
-            </button>
-          )
-        })}
+        {PAISES.map(p => { const activo = pais === p.id; return (<button key={p.id} onClick={() => { setPais(p.id); setCadena('ALL') }} style={{ background: activo? '#c9a86a' : '#141414', color: activo? 'black' : 'white', borderRadius: 20, padding: '16px 6px', border: '1px solid #2a2a2a', fontWeight: 800 }}><div style={{ fontSize: 28 }}>{p.flag}</div><div style={{ marginTop: 6 }}>{p.label}</div></button>) })}
       </div>
-
       <div style={{ background: '#0f0f0f', margin: 12, borderRadius: 20, padding: 14, border: '1px solid #222' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-          <span style={{ color: '#c9a86a', fontWeight: 800, fontSize: 13 }}>CADENAS EN {pais}</span>
-          <span style={{ color: '#888', fontSize: 13 }}>{porPais.length} noticias</span>
-        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}><span style={{ color: '#c9a86a', fontWeight: 800, fontSize: 13 }}>CADENAS EN {pais}</span><span style={{ color: '#888', fontSize: 13 }}>{porPais.length}</span></div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           <button onClick={() => setCadena('ALL')} style={{ background: cadena === 'ALL'? '#c9a86a' : '#1e1e1e', color: cadena === 'ALL'? 'black' : '#888', borderRadius: 20, padding: '10px 16px', fontWeight: 900, border: '1px solid #333' }}>TODAS ({porPais.length})</button>
-          {cadenas.map(c => (
-            <button key={c} onClick={() => setCadena(c)} style={{ background: cadena === c? '#c9a86a' : '#1e1e1e', color: cadena === c? 'black' : 'white', borderRadius: 20, padding: '10px 16px', fontWeight: 800, border: '1px solid #333' }}>{c} ({contar[c]})</button>
-          ))}
+          {cadenas.map(c => (<button key={c} onClick={() => setCadena(c)} style={{ background: cadena === c? '#c9a86a' : '#1e1e1e', color: cadena === c? 'black' : 'white', borderRadius: 20, padding: '10px 16px', fontWeight: 800, border: '1px solid #333' }}>{c} ({contar[c]})</button>))}
         </div>
       </div>
-
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, padding: '0 12px 20px' }}>
-        {final.map(n => (
-          <div key={n.id} onClick={() => abrir(n)} style={{ background: '#141414', borderRadius: 20, overflow: 'hidden', border: '1px solid #222' }}>
-            <div style={{ position: 'relative', height: 120 }}>
-              <img src={n.image || n.image_url || `https://picsum.photos/seed/${n.id}/300/200`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
-              <div style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(0,0,0,0.75)', color: '#c9a86a', borderRadius: 12, padding: '4px 10px', fontSize: 11, fontWeight: 900 }}>{n.cadena}</div>
-            </div>
-            <div style={{ padding: 12 }}>
-              <div style={{ fontSize: 14, fontWeight: 600, lineHeight: '18px', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' as any, overflow: 'hidden', minHeight: 54 }}>{n.title}</div>
-            </div>
-          </div>
-        ))}
+        {final.map(n => (<div key={n.id} onClick={() => abrir(n)} style={{ background: '#141414', borderRadius: 20, overflow: 'hidden', border: '1px solid #222' }}><div style={{ position: 'relative', height: 120 }}><img src={n.image || n.image_url || `https://picsum.photos/seed/${n.id}/300/200`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" /><div style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(0,0,0,0.75)', color: '#c9a86a', borderRadius: 12, padding: '4px 10px', fontSize: 11, fontWeight: 900 }}>{n.cadena}</div></div><div style={{ padding: 12 }}><div style={{ fontSize: 14, fontWeight: 600, lineHeight: '18px', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' as any, overflow: 'hidden', minHeight: 54 }}>{n.title}</div></div></div>))}
       </div>
-
       {sel && (
         <div onClick={() => setSel(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', zIndex: 99, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: 16, overflowY: 'auto' }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#1a1a1a', borderRadius: 20, width: '100%', maxWidth: 460, border: '1px solid #333', marginTop: 10, overflow: 'hidden' }}>
             <img src={sel.image || sel.image_url || `https://picsum.photos/seed/${sel.id}/400/250`} style={{ width: '100%', height: 220, objectFit: 'cover' }} alt="" />
             <div style={{ padding: 16 }}>
-              <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-                {IDIOMAS.map(id => (
-                  <button key={id.id} onClick={() => cambiarIdioma(id.id)} style={{ flex: 1, background: idioma === id.id? '#c9a86a' : '#222', color: idioma === id.id? 'black' : 'white', borderRadius: 12, padding: '10px 4px', fontWeight: 800, border: '1px solid #333' }}>{id.flag} {id.label}</button>
-                ))}
-              </div>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>{IDIOMAS.map(id => (<button key={id.id} onClick={() => cambiarIdioma(id.id)} style={{ flex: 1, background: idioma === id.id? '#c9a86a' : '#222', color: idioma === id.id? 'black' : 'white', borderRadius: 12, padding: '10px 4px', fontWeight: 800, border: '1px solid #333' }}>{id.flag} {id.label}</button>))}</div>
               <h2 style={{ margin: '0 0 12px', fontSize: 19, lineHeight: '26px' }}>{traduciendo? 'Traduciendo...' : tituloTrad}</h2>
-              <div style={{ background: '#0f0f0f', borderRadius: 12, padding: 12, marginBottom: 14, border: '1px solid #222' }}>
-                <div style={{ color: '#c9a86a', fontSize: 11, fontWeight: 900, marginBottom: 8 }}>{cargando? 'EXTRAYENDO...' : esGoogle? 'AVISO GOOGLE' : 'NOTICIA COMPLETA'}</div>
-                <div style={{ color: '#ddd', fontSize: 14, lineHeight: '21px', whiteSpace: 'pre-wrap', maxHeight: 320, overflowY: 'auto' }}>{cargando? 'Leyendo artículo original...' : traduciendo? 'Traduciendo contenido...' : contenidoTrad}</div>
-              </div>
-              <a href={sel.link || sel.url} target="_blank" style={{ display: 'block', background: '#c9a86a', color: 'black', textAlign: 'center', padding: 14, borderRadius: 12, fontWeight: 900, textDecoration: 'none' }}>Leer fuente original →</a>
+              <div style={{ background: '#0f0f0f', borderRadius: 12, padding: 12, marginBottom: 14, border: '1px solid #222' }}><div style={{ color: '#c9a86a', fontSize: 11, fontWeight: 900, marginBottom: 8 }}>{cargando? 'EXTRAYENDO...' : 'NOTICIA COMPLETA'}</div><div style={{ color: '#ddd', fontSize: 14, lineHeight: '21px', whiteSpace: 'pre-wrap', maxHeight: 380, overflowY: 'auto' }}>{cargando? 'Leyendo artículo original del diario...' : traduciendo? 'Traduciendo contenido...' : contenidoTrad}</div></div>
+              <a href={sel.realLink || sel.link || sel.url} target="_blank" style={{ display: 'block', background: '#c9a86a', color: 'black', textAlign: 'center', padding: 14, borderRadius: 12, fontWeight: 900, textDecoration: 'none' }}>Leer fuente original →</a>
               <button onClick={() => setSel(null)} style={{ width: '100%', marginTop: 8, background: '#222', color: 'white', padding: 12, borderRadius: 12, border: '1px solid #333' }}>Cerrar</button>
             </div>
           </div>
