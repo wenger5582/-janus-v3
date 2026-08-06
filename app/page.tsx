@@ -33,7 +33,8 @@ function sacarCadena(item: any) {
   if (t.includes('elmundo')) return 'EL MUNDO'
   if (t.includes('lemonde')) return 'LE MONDE'
   if (t.includes('lefigaro')) return 'LE FIGARO'
-  return 'GOOGLE'
+  if (t.includes('news.google')) return 'GOOGLE'
+  return 'OTROS'
 }
 
 export default function Page() {
@@ -50,6 +51,7 @@ export default function Page() {
   const [contenidoTrad, setContenidoTrad] = useState('')
   const [cargando, setCargando] = useState(false)
   const [traduciendo, setTraduciendo] = useState(false)
+  const [esGoogle, setEsGoogle] = useState(false)
 
   const cargar = async () => {
     const { data } = await supabase.from('news').select('*').order('created_at', { ascending: false }).limit(200)
@@ -60,7 +62,7 @@ export default function Page() {
 
   useEffect(() => {
     cargar()
-    const t = setInterval(() => setSegundos(s => s <= 1? (cargar(), 300) : s - 1), 1000)
+    const t = setInterval(() => setSegundos(s => (s <= 1? (cargar(), 300) : s - 1)), 1000)
     return () => clearInterval(t)
   }, [])
 
@@ -74,30 +76,42 @@ export default function Page() {
   }
 
   const traerArticulo = async (url: string) => {
-    if (!url) return ''
+    if (!url || url.includes('news.google.com')) return ''
     setCargando(true)
     try {
       const r = await fetch(`https://r.jina.ai/${url}`)
       const txt = await r.text()
+      if (txt.includes('AbuseAlleviation') || txt.includes('"code":403')) return ''
       return txt.slice(0, 5000)
     } catch { return '' }
     finally { setCargando(false) }
   }
 
   const abrir = async (item: any) => {
+    const link = item.link || item.url || ''
+    const esG = link.includes('news.google.com')
     setSel(item)
+    setEsGoogle(esG)
     setIdioma('es')
     setTituloTrad(item.title)
     setContenidoOrig('')
-    setContenidoTrad('Extrayendo noticia completa...')
-    const full = await traerArticulo(item.link || item.url)
-    const base = full || item.description || ''
+    setContenidoTrad(esG? '' : 'Extrayendo noticia completa...')
+
+    if (esG) {
+      const t1 = await traducir(item.title, 'es')
+      setTituloTrad(t1)
+      setContenidoTrad('⚠️ Esta noticia viene de Google News. Google bloqueó temporalmente la extracción automática hasta hoy a las 20:37 GMT por exceso de tráfico. Pulsa "Leer fuente original" abajo para verla completa directamente en el diario.')
+      return
+    }
+
+    const full = await traerArticulo(link)
+    const base = full || item.description || item.content || ''
     setContenidoOrig(base)
     setTraduciendo(true)
     const t1 = await traducir(item.title, 'es')
-    const t2 = await traducir(base.slice(0, 2000), 'es')
+    const t2 = base? await traducir(base.slice(0, 2000), 'es') : 'Sin contenido extra. Pulsa fuente original.'
     setTituloTrad(t1)
-    setContenidoTrad(t2 || 'Pulsa abajo para leer fuente original')
+    setContenidoTrad(t2)
     setTraduciendo(false)
   }
 
@@ -105,9 +119,9 @@ export default function Page() {
     setIdioma(lang)
     setTraduciendo(true)
     const t1 = await traducir(sel.title, lang)
-    const t2 = await traducir(contenidoOrig.slice(0, 2000), lang)
+    const t2 = esGoogle? contenidoTrad : await traducir(contenidoOrig.slice(0, 2000), lang)
     setTituloTrad(t1)
-    setContenidoTrad(t2)
+    if (!esGoogle) setContenidoTrad(t2)
     setTraduciendo(false)
   }
 
@@ -143,12 +157,11 @@ export default function Page() {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, padding: '0 12px' }}>
         {PAISES.map(p => {
-          const cant = p.id === 'ALL'? noticias.length : porPais.filter(n => p.id === 'ALL' || n.source?.toUpperCase() === p.id || (p.id === 'FRANCIA' && ['LE MONDE', 'LE FIGARO'].includes(n.cadena)) || (p.id === 'ESPAÑA' && ['EL PAIS', 'EL MUNDO'].includes(n.cadena))).length
           const activo = pais === p.id
           return (
             <button key={p.id} onClick={() => { setPais(p.id); setCadena('ALL') }} style={{ background: activo? '#c9a86a' : '#141414', color: activo? 'black' : 'white', borderRadius: 20, padding: '16px 6px', border: '1px solid #2a2a2a', fontWeight: 800 }}>
               <div style={{ fontSize: 28 }}>{p.flag}</div>
-              <div style={{ marginTop: 6 }}>{p.label} <span style={{ background: activo? 'black' : '#c9a86a', color: activo? '#c9a86a' : 'black', borderRadius: 12, padding: '2px 8px', fontSize: 12 }}>{p.id === 'ALL'? noticias.length : porPais.length}</span></div>
+              <div style={{ marginTop: 6 }}>{p.label}</div>
             </button>
           )
         })}
@@ -173,14 +186,9 @@ export default function Page() {
             <div style={{ position: 'relative', height: 120 }}>
               <img src={n.image || n.image_url || `https://picsum.photos/seed/${n.id}/300/200`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
               <div style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(0,0,0,0.75)', color: '#c9a86a', borderRadius: 12, padding: '4px 10px', fontSize: 11, fontWeight: 900 }}>{n.cadena}</div>
-              <div style={{ position: 'absolute', top: 8, right: 8, background: '#c9a86a', color: 'black', borderRadius: 12, padding: '3px 7px', fontSize: 10, fontWeight: 900 }}>🌐</div>
             </div>
             <div style={{ padding: 12 }}>
               <div style={{ fontSize: 14, fontWeight: 600, lineHeight: '18px', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' as any, overflow: 'hidden', minHeight: 54 }}>{n.title}</div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, color: '#666', fontSize: 11 }}>
-                <span>{new Date(n.created_at).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}</span>
-                <span style={{ color: '#c9a86a' }}>Ver →</span>
-              </div>
             </div>
           </div>
         ))}
@@ -198,7 +206,7 @@ export default function Page() {
               </div>
               <h2 style={{ margin: '0 0 12px', fontSize: 19, lineHeight: '26px' }}>{traduciendo? 'Traduciendo...' : tituloTrad}</h2>
               <div style={{ background: '#0f0f0f', borderRadius: 12, padding: 12, marginBottom: 14, border: '1px solid #222' }}>
-                <div style={{ color: '#c9a86a', fontSize: 11, fontWeight: 900, marginBottom: 8 }}>{cargando? 'EXTRAYENDO...' : 'NOTICIA COMPLETA'}</div>
+                <div style={{ color: '#c9a86a', fontSize: 11, fontWeight: 900, marginBottom: 8 }}>{cargando? 'EXTRAYENDO...' : esGoogle? 'AVISO GOOGLE' : 'NOTICIA COMPLETA'}</div>
                 <div style={{ color: '#ddd', fontSize: 14, lineHeight: '21px', whiteSpace: 'pre-wrap', maxHeight: 320, overflowY: 'auto' }}>{cargando? 'Leyendo artículo original...' : traduciendo? 'Traduciendo contenido...' : contenidoTrad}</div>
               </div>
               <a href={sel.link || sel.url} target="_blank" style={{ display: 'block', background: '#c9a86a', color: 'black', textAlign: 'center', padding: 14, borderRadius: 12, fontWeight: 900, textDecoration: 'none' }}>Leer fuente original →</a>
