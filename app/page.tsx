@@ -37,16 +37,49 @@ function decodificarGoogleNews(url) {
   } catch(e) { return url }
 }
 
+function detectarPais(item) {
+  const link = (item.realLink || item.link || item.url || '').toLowerCase()
+  const src = (item.source || '').toLowerCase()
+  const t = link + ' ' + src
+  if (t.indexOf('lemonde')!== -1 || t.indexOf('lefigaro')!== -1 || t.indexOf('leparisien')!== -1 || t.indexOf('france24')!== -1 || t.indexOf('francetv')!== -1 || t.indexOf('liberation')!== -1 || t.indexOf('.fr')!== -1 || src === 'francia') return 'FRANCIA'
+  if (t.indexOf('elpais')!== -1 || t.indexOf('elmundo')!== -1 || t.indexOf('abc.es')!== -1 || t.indexOf('lavanguardia')!== -1 || t.indexOf('20minutos')!== -1 || t.indexOf('.es')!== -1 || src === 'espana') return 'ESPAÑA'
+  if (t.indexOf('biobio')!== -1 || t.indexOf('emol')!== -1 || t.indexOf('tercera')!== -1 || t.indexOf('cooperativa')!== -1 || t.indexOf('24horas')!== -1 || t.indexOf('cnnchile')!== -1 || t.indexOf('.cl')!== -1 || src === 'chile') return 'CHILE'
+  if (t.indexOf('bbc')!== -1 || t.indexOf('guardian')!== -1 || t.indexOf('telegraph')!== -1 || t.indexOf('independent.co.uk')!== -1 || t.indexOf('.co.uk')!== -1 || src === 'uk') return 'UK'
+  if (t.indexOf('nytimes')!== -1 || t.indexOf('washingtonpost')!== -1 || t.indexOf('cnn.com')!== -1 || t.indexOf('foxnews')!== -1 || t.indexOf('usatoday')!== -1 || src === 'usa') return 'USA'
+  if (item.source) return item.source.toUpperCase()
+  return 'USA'
+}
+
 function sacarCadena(item) {
-  const t = (item.realLink || item.link || item.url || '') + ' ' + (item.title || '')
+  const t = (item.realLink || item.link || item.url || '') + ' ' + (item.source || '') + ' ' + (item.title || '')
   const low = t.toLowerCase()
   if (low.indexOf('bbc')!== -1) return 'BBC'
   if (low.indexOf('guardian')!== -1) return 'GUARDIAN'
-  if (low.indexOf('bio')!== -1) return 'BIOBIO'
+  if (low.indexOf('sky news')!== -1 || low.indexOf('news.sky.com')!== -1) return 'SKY NEWS'
+  if (low.indexOf('telegraph')!== -1) return 'TELEGRAPH'
+  if (low.indexOf('lemonde')!== -1) return 'LE MONDE'
+  if (low.indexOf('lefigaro')!== -1) return 'LE FIGARO'
+  if (low.indexOf('leparisien')!== -1) return 'LE PARISIEN'
+  if (low.indexOf('france24')!== -1) return 'FRANCE 24'
+  if (low.indexOf('elpais')!== -1) return 'EL PAIS'
+  if (low.indexOf('elmundo')!== -1) return 'EL MUNDO'
+  if (low.indexOf('abc.es')!== -1) return 'ABC ES'
+  if (low.indexOf('biobio')!== -1) return 'BIOBIO'
   if (low.indexOf('emol')!== -1) return 'EMOL'
   if (low.indexOf('tercera')!== -1) return 'LA TERCERA'
-  if (low.indexOf('elpais')!== -1) return 'EL PAIS'
+  if (low.indexOf('cooperativa')!== -1) return 'COOPERATIVA'
+  if (low.indexOf('cnn')!== -1) return 'CNN'
+  if (low.indexOf('nytimes')!== -1) return 'NYT'
   return 'OTROS'
+}
+
+function extraerParrafos(html) {
+  if (!html) return ''
+  try {
+    const doc = new DOMParser().parseFromString(html, 'text/html')
+    const ps = Array.from(doc.querySelectorAll('p')).map(function(p){ return p.textContent.trim() }).filter(function(t){ return t && t.length > 45 })
+    return ps.slice(0, 12).join('\n\n').slice(0, 6000)
+  } catch(e) { return '' }
 }
 
 export default function Page() {
@@ -71,7 +104,8 @@ export default function Page() {
     if (res.data) {
       const conReal = res.data.map(function(n){
         const realLink = decodificarGoogleNews(n.link || n.url || '')
-        return {...n, realLink: realLink, cadena: sacarCadena({...n, realLink: realLink }) }
+        const itemTemp = {...n, realLink: realLink}
+        return {...n, realLink: realLink, paisDetectado: detectarPais(itemTemp), cadena: sacarCadena(itemTemp) }
       })
       setNoticias(conReal)
     }
@@ -105,29 +139,45 @@ export default function Page() {
   const traerArticulo = async (url) => {
     setCargando(true)
     try{
-      const r = await fetch('https://r.jina.ai/' + url)
-      const txt = await r.text()
-      if(txt && txt.indexOf('AbuseAlleviation') === -1 && txt.length > 200){
-        return txt.slice(0, 6000)
-      }
+      try{
+        const r = await fetch('https://r.jina.ai/' + url)
+        const txt = await r.text()
+        if(txt && txt.indexOf('AbuseAlleviation') === -1 && txt.length > 400) return txt.slice(0, 6000)
+      }catch(e){}
+      try{
+        const r = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(url))
+        const j = await r.json()
+        const html = j.contents || ''
+        const extr = extraerParrafos(html)
+        if(extr && extr.length > 100) return extr
+      }catch(e){}
+      try{
+        const r = await fetch('https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(url))
+        const html = await r.text()
+        const extr = extraerParrafos(html)
+        if(extr && extr.length > 100) return extr
+      }catch(e){}
       return ''
-    }catch(e){ return '' }
-    finally{ setCargando(false) }
+    }finally{ setCargando(false) }
   }
 
   const abrir = async (item) => {
     setSel(item)
     setIdioma('es')
     setTituloTrad(item.title)
-    setContenidoTrad('Extrayendo noticia completa...')
+    setContenidoTrad('Extrayendo noticia completa del diario original...')
     setContenidoOrig('')
     const realUrl = item.realLink || decodificarGoogleNews(item.link || item.url || '')
     const full = await traerArticulo(realUrl)
-    const base = full || item.description || ''
+    const base = full || item.description || item.content || ''
     setContenidoOrig(base)
+    if(!base){
+      setContenidoTrad('Este diario bloquea la extraccion. Usa el boton de abajo para leer la fuente original.')
+      return
+    }
     setTraduciendo(true)
     const t1 = await traducir(item.title, 'es')
-    const t2 = base? await traducir(base.slice(0, 2500), 'es') : 'Pulsa Leer fuente original.'
+    const t2 = await traducir(base.slice(0, 2800), 'es')
     setTituloTrad(t1)
     setContenidoTrad(t2)
     setTraduciendo(false)
@@ -135,22 +185,23 @@ export default function Page() {
 
   const cambiarIdioma = async (lang) => {
     setIdioma(lang)
+    if(!contenidoOrig) return
     setTraduciendo(true)
     const t1 = await traducir(sel.title, lang)
-    const t2 = contenidoOrig? await traducir(contenidoOrig.slice(0, 2500), lang) : contenidoTrad
+    const t2 = await traducir(contenidoOrig.slice(0, 2800), lang)
     setTituloTrad(t1)
-    if(t2) setContenidoTrad(t2)
+    setContenidoTrad(t2)
     setTraduciendo(false)
   }
 
   const getCountPais = (id) => {
     if(id === 'ALL') return noticias.length
-    return noticias.filter(function(n){ return n.source && n.source.toUpperCase() === id }).length
+    return noticias.filter(function(n){ return n.paisDetectado === id }).length
   }
 
   const porPais = noticias.filter(function(n){
     if(pais === 'ALL') return true
-    return n.source && n.source.toUpperCase() === pais
+    return n.paisDetectado === pais
   })
 
   const cadenas = Array.from(new Set(porPais.map(function(n){ return n.cadena }))).sort()
@@ -180,7 +231,7 @@ export default function Page() {
         </div>
       </div>
 
-      <div style={{ padding: '0 12px', color: '#666', fontSize: 12, marginBottom: 10 }}>Actualizado: {hora} - Pagina {pagina} de {totalPaginas} - {final.length}/{noticias.length}</div>
+      <div style={{ padding: '0 12px', color: '#666', fontSize: 12, marginBottom: 10 }}>Actualizado: {hora} - Pag {pagina}/{totalPaginas} - {final.length}/{noticias.length}</div>
 
       <div style={{ padding: '0 12px', marginBottom: 8 }}>
         <input placeholder="Buscar..." value={buscar} onChange={function(e){ setBuscar(e.target.value) }} style={{ width: '100%', background: '#141414', border: '1px solid #2a2a2a', borderRadius: 14, padding: '14px', color: 'white' }} />
@@ -240,9 +291,9 @@ export default function Page() {
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10, padding: '0 12px 24px' }}>
-        <button disabled={pagina === 1} onClick={function(){ setPagina(pagina - 1); window.scrollTo(0,0) }} style={{ background: pagina === 1? '#222' : '#c9a86a', color: pagina === 1? '#666' : 'black', borderRadius: 20, padding: '12px 18px', fontWeight: 900, border: '1px solid #333', opacity: pagina === 1? 0.5 : 1 }}>‹ Anterior</button>
+        <button disabled={pagina === 1} onClick={function(){ setPagina(pagina - 1); window.scrollTo(0,0) }} style={{ background: pagina === 1? '#222' : '#c9a86a', color: pagina === 1? '#666' : 'black', borderRadius: 20, padding: '12px 18px', fontWeight: 900, border: '1px solid #333', opacity: pagina === 1? 0.5 : 1 }}>Anterior</button>
         <div style={{ background: '#141414', borderRadius: 20, padding: '10px 16px', border: '1px solid #2a2a2a', fontWeight: 800, fontSize: 13 }}>{pagina} / {totalPaginas}</div>
-        <button disabled={pagina === totalPaginas} onClick={function(){ setPagina(pagina + 1); window.scrollTo(0,0) }} style={{ background: pagina === totalPaginas? '#222' : '#c9a86a', color: pagina === totalPaginas? '#666' : 'black', borderRadius: 20, padding: '12px 18px', fontWeight: 900, border: '1px solid #333', opacity: pagina === totalPaginas? 0.5 : 1 }}>Siguiente ›</button>
+        <button disabled={pagina === totalPaginas} onClick={function(){ setPagina(pagina + 1); window.scrollTo(0,0) }} style={{ background: pagina === totalPaginas? '#222' : '#c9a86a', color: pagina === totalPaginas? '#666' : 'black', borderRadius: 20, padding: '12px 18px', fontWeight: 900, border: '1px solid #333', opacity: pagina === totalPaginas? 0.5 : 1 }}>Siguiente</button>
       </div>
 
       {sel && (
@@ -258,7 +309,7 @@ export default function Page() {
               <h2 style={{ margin: '0 0 12px', fontSize: 19, lineHeight: '26px' }}>{traduciendo? 'Traduciendo...' : tituloTrad}</h2>
               <div style={{ background: '#0f0f0f', borderRadius: 12, padding: 12, marginBottom: 14, border: '1px solid #222' }}>
                 <div style={{ color: '#c9a86a', fontSize: 11, fontWeight: 900, marginBottom: 8 }}>{cargando? 'EXTRAYENDO...' : 'NOTICIA COMPLETA'}</div>
-                <div style={{ color: '#ddd', fontSize: 14, lineHeight: '21px', whiteSpace: 'pre-wrap', maxHeight: 380, overflowY: 'auto' }}>{cargando? 'Leyendo articulo...' : traduciendo? 'Traduciendo...' : contenidoTrad}</div>
+                <div style={{ color: '#ddd', fontSize: 14, lineHeight: '21px', whiteSpace: 'pre-wrap', maxHeight: 380, overflowY: 'auto' }}>{cargando? 'Leyendo articulo del diario...' : traduciendo? 'Traduciendo...' : contenidoTrad}</div>
               </div>
               <a href={sel.realLink || sel.link || sel.url} target="_blank" style={{ display: 'block', background: '#c9a86a', color: 'black', textAlign: 'center', padding: 14, borderRadius: 12, fontWeight: 900, textDecoration: 'none' }}>Leer fuente original</a>
               <button onClick={function(){ setSel(null) }} style={{ width: '100%', marginTop: 8, background: '#222', color: 'white', padding: 12, borderRadius: 12, border: '1px solid #333' }}>Cerrar</button>
