@@ -42,16 +42,7 @@ function sacarCadena(item: any) {
   if (todo.includes('elmundo')) return 'EL MUNDO'
   if (todo.includes('lemonde')) return 'LE MONDE'
   if (todo.includes('lefigaro')) return 'LE FIGARO'
-  if (host.includes('google')) {
-    const partes = (item.title || '').split(/ - | \| | — /)
-    if (partes.length > 1) {
-      const p = partes[partes.length-1].toLowerCase()
-      if (p.includes('bbc')) return 'BBC'
-      if (p.includes('guardian')) return 'GUARDIAN'
-      if (p.length < 20) return p.toUpperCase().slice(0,12)
-    }
-    return 'GOOGLE'
-  }
+  if (host.includes('google')) return 'GOOGLE'
   return host ? host.replace('www.','').split('.')[0].toUpperCase().slice(0,12) : 'OTROS'
 }
 
@@ -64,7 +55,8 @@ export default function Page() {
   const [segundos, setSegundos] = useState(300)
   const [sel, setSel] = useState<any>(null)
   const [idioma, setIdioma] = useState('es')
-  const [traducido, setTraducido] = useState('')
+  const [traducidoTitulo, setTraducidoTitulo] = useState('')
+  const [traducidoDesc, setTraducidoDesc] = useState('')
   const [traduciendo, setTraduciendo] = useState(false)
 
   const cargar = async () => {
@@ -76,25 +68,30 @@ export default function Page() {
 
   useEffect(() => { cargar(); const t = setInterval(() => setSegundos(s => s <= 1 ? (cargar(), 300) : s - 1), 1000); return () => clearInterval(t) }, [])
 
-  const traducirTexto = async (texto: string, lang: string) => {
-    if (!texto) return
-    setTraduciendo(true)
+  const traducir = async (texto: string, lang: string) => {
     try {
       const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${lang}&dt=t&q=${encodeURIComponent(texto)}`)
       const json = await res.json()
-      const trad = json[0]?.map((p:any)=>p[0]).join('') || texto
-      setTraducido(trad)
-    } catch {
-      setTraducido(texto)
-    }
+      return json[0]?.map((p:any)=>p[0]).join('') || texto
+    } catch { return texto }
+  }
+
+  const traducirNoticia = async (item: any, lang: string) => {
+    setTraduciendo(true)
+    const desc = item.description || item.content || item.summary || item.title || ''
+    const t1 = await traducir(item.title, lang)
+    const t2 = desc !== item.title ? await traducir(desc, lang) : ''
+    setTraducidoTitulo(t1)
+    setTraducidoDesc(t2)
     setTraduciendo(false)
   }
 
   useEffect(() => {
     if (sel) {
       setIdioma('es')
-      setTraducido(sel.title)
-      traducirTexto(sel.title, 'es')
+      setTraducidoTitulo(sel.title)
+      setTraducidoDesc(sel.description || sel.content || sel.summary || '')
+      traducirNoticia(sel, 'es')
     }
   }, [sel])
 
@@ -140,7 +137,7 @@ export default function Page() {
             <div style={{ position: 'relative', height: 120 }}>
               <img src={n.image || n.image_url || `https://picsum.photos/seed/${n.id}/300/200`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
               <div style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(0,0,0,0.75)', color: '#c9a86a', borderRadius: 12, padding: '4px 10px', fontSize: 11, fontWeight: 900 }}>{n.cadena}</div>
-              <div style={{ position: 'absolute', top: 8, right: 8, background: '#c9a86a', color: 'black', borderRadius: 12, padding: '3px 7px', fontSize: 10, fontWeight: 900 }}>🌐 TRADUCIR</div>
+              <div style={{ position: 'absolute', top: 8, right: 8, background: '#c9a86a', color: 'black', borderRadius: 12, padding: '3px 7px', fontSize: 10, fontWeight: 900 }}>🌐</div>
             </div>
             <div style={{ padding: 12 }}>
               <div style={{ fontSize: 14, fontWeight: 600, lineHeight: '18px', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' as any, overflow: 'hidden', minHeight: 54 }}>{n.title}</div>
@@ -151,20 +148,34 @@ export default function Page() {
       </div>
 
       {sel && (
-        <div onClick={() => setSel(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', zIndex: 99, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: '#1a1a1a', borderRadius: 20, width: '100%', maxWidth: 420, overflow: 'hidden', border: '1px solid #333' }}>
-            <img src={sel.image || sel.image_url || `https://picsum.photos/seed/${sel.id}/400/250`} style={{ width: '100%', height: 200, objectFit: 'cover' }} alt="" />
+        <div onClick={() => setSel(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 99, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: 16, overflowY: 'auto' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#1a1a1a', borderRadius: 20, width: '100%', maxWidth: 440, overflow: 'hidden', border: '1px solid #333', marginTop: 20, marginBottom: 20 }}>
+            <img src={sel.image || sel.image_url || `https://picsum.photos/seed/${sel.id}/400/250`} style={{ width: '100%', height: 220, objectFit: 'cover' }} alt="" />
             <div style={{ padding: 16 }}>
-              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
                 {IDIOMAS.map(id => (
-                  <button key={id.id} onClick={() => { setIdioma(id.id); traducirTexto(sel.title, id.id) }} style={{ flex: 1, background: idioma === id.id ? '#c9a86a' : '#222', color: idioma === id.id ? 'black' : 'white', borderRadius: 12, padding: '10px 4px', fontWeight: 800, border: '1px solid #333', fontSize: 13 }}>
+                  <button key={id.id} onClick={() => { setIdioma(id.id); traducirNoticia(sel, id.id) }} style={{ flex: 1, background: idioma === id.id ? '#c9a86a' : '#222', color: idioma === id.id ? 'black' : 'white', borderRadius: 12, padding: '10px 4px', fontWeight: 800, border: '1px solid #333', fontSize: 13 }}>
                     {id.flag} {id.label}
                   </button>
                 ))}
               </div>
-              <h3 style={{ margin: '0 0 12px', minHeight: 40 }}>{traduciendo ? 'Traduciendo...' : traducido}</h3>
-              <div style={{ color: '#888', fontSize: 12, marginBottom: 12 }}>Original: {sel.title}</div>
-              <a href={sel.link || sel.url} target="_blank" style={{ display: 'block', background: '#c9a86a', color: 'black', textAlign: 'center', padding: 14, borderRadius: 12, fontWeight: 900, textDecoration: 'none' }}>Leer completa →</a>
+              
+              <h2 style={{ margin: '0 0 12px', fontSize: 20, lineHeight: '26px' }}>{traduciendo ? 'Traduciendo...' : traducidoTitulo}</h2>
+              
+              <div style={{ background: '#0f0f0f', borderRadius: 12, padding: 12, marginBottom: 14, border: '1px solid #222' }}>
+                <div style={{ color: '#c9a86a', fontSize: 11, fontWeight: 900, marginBottom: 6, letterSpacing: 1 }}>NOTICIA COMPLETA</div>
+                <div style={{ color: '#ddd', fontSize: 14, lineHeight: '20px', whiteSpace: 'pre-wrap' }}>
+                  {traduciendo ? 'Cargando contenido...' : (traducidoDesc || 'Sin descripción disponible. Pulsa "Leer completa" para ver el artículo original.')}
+                </div>
+              </div>
+
+              <div style={{ color: '#666', fontSize: 11, marginBottom: 14, background: '#0f0f0f', padding: 10, borderRadius: 10 }}>
+                <div style={{ fontWeight: 700, marginBottom: 4 }}>Original:</div>
+                {sel.title}
+                {sel.description && sel.description !== sel.title && <div style={{ marginTop: 8, color: '#888' }}>{sel.description}</div>}
+              </div>
+
+              <a href={sel.link || sel.url} target="_blank" style={{ display: 'block', background: '#c9a86a', color: 'black', textAlign: 'center', padding: 14, borderRadius: 12, fontWeight: 900, textDecoration: 'none' }}>Leer fuente original →</a>
               <button onClick={() => setSel(null)} style={{ width: '100%', marginTop: 8, background: '#222', color: 'white', padding: 12, borderRadius: 12, border: '1px solid #333' }}>Cerrar</button>
             </div>
           </div>
