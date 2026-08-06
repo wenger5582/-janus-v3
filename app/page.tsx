@@ -123,33 +123,42 @@ export default function Page() {
   }
 
   const traerArticulo = async (url) => {
-    setCargando(true)
     try{
       const r = await fetch('/api/extract?url=' + encodeURIComponent(url))
       const j = await r.json()
       return j.text || ''
     }catch(e){ return '' }
-    finally{ setCargando(false) }
   }
 
   const abrir = async (item) => {
     setSel(item)
     setIdioma('es')
-    setTituloTrad(item.title)
+    setTituloTrad('Traduciendo titulo...')
     setContenidoTrad('Extrayendo noticia completa del diario original...')
     setContenidoOrig('')
+    setCargando(true)
+
+    try{
+      const t1 = await traducir(item.title, 'es')
+      setTituloTrad(t1)
+    }catch(e){
+      setTituloTrad(item.title)
+    }
+
     const realUrl = item.realLink || decodificarGoogleNews(item.link || item.url || '')
     const full = await traerArticulo(realUrl)
     const base = full || item.description || item.content || ''
+
     setContenidoOrig(base)
+    setCargando(false)
+
     if(!base){
       setContenidoTrad('Este diario bloquea la extraccion. Usa el boton de abajo para leer la fuente original.')
       return
     }
+
     setTraduciendo(true)
-    const t1 = await traducir(item.title, 'es')
     const t2 = await traducir(base.slice(0, 2800), 'es')
-    setTituloTrad(t1)
     setContenidoTrad(t2)
     setTraduciendo(false)
   }
