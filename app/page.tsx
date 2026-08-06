@@ -29,8 +29,7 @@ function decodificarGoogleNews(url: string) {
     const decoded = atob(str)
     const found = decoded.match(/https?:\/\/[^"\x00-\x1F\s]+/g)
     if (found && found.length) {
-      // Quedarse con la URL más larga que no sea google
-      const real = found.filter(u =>!u.includes('google')).sort((a,b)=>b.length-a.length)[0] || found[0]
+      const real = found.filter((u: string) =>!u.includes('google')).sort((a: any,b: any)=>b.length-a.length)[0] || found[0]
       return real.replace(/[\x08\x0B\x0C]+/g,'').split('\x00')[0].replace(/\)+$/,'')
     }
     return url
@@ -123,16 +122,12 @@ export default function Page() {
     setContenidoOrig('')
     setContenidoTrad('Extrayendo noticia completa del diario original...')
     let realUrl = item.realLink || decodificarGoogleNews(item.link || item.url || '')
-    // Si aún es google, intenta resolver via proxy
-    if (realUrl.includes('news.google.com')) {
-      realUrl = await extraerViaAllOrigins(realUrl)? realUrl : realUrl
-    }
     const full = await traerArticulo(realUrl)
-    const base = full || item.description || item.content || ''
+    const base = full || item.description || ''
     setContenidoOrig(base)
     setTraduciendo(true)
     const t1 = await traducir(item.title, 'es')
-    const t2 = base? await traducir(base.slice(0, 2500), 'es') : 'No se pudo extraer texto limpio de este diario (algunos bloquean). Pulsa "Leer fuente original" abajo, ese siempre funciona.'
+    const t2 = base? await traducir(base.slice(0, 2500), 'es') : 'Este diario bloquea la extracción. Pulsa "Leer fuente original" abajo, ese siempre funciona.'
     setTituloTrad(t1)
     setContenidoTrad(t2)
     setTraduciendo(false)
@@ -142,7 +137,7 @@ export default function Page() {
     setIdioma(lang)
     setTraduciendo(true)
     const t1 = await traducir(sel.title, lang)
-    const t2 = contenidoOrig? await traducir(contenidoOrig.slice(0, 2500), lang) : ''
+    const t2 = contenidoOrig? await traducir(contenidoOrig.slice(0, 2500), lang) : contenidoTrad
     setTituloTrad(t1)
     if (t2) setContenidoTrad(t2)
     setTraduciendo(false)
@@ -174,9 +169,9 @@ export default function Page() {
           <div className={segundos <= 60? 'latir' : ''} style={{ width: 10, height: 10, borderRadius: 99, background: segundos <= 60? '#ef4444' : '#22c55e' }} />
           {Math.floor(segundos / 60)}:{(segundos % 60).toString().padStart(2, '0')}
         </div>
+      </div>
       <div style={{ padding: '0 12px', color: '#666', fontSize: 12, marginBottom: 10 }}>Actualizado: {hora} • {final.length}/{noticias.length}</div>
       <div style={{ padding: '0 12px', marginBottom: 12 }}><input placeholder="Buscar..." value={buscar} onChange={e => setBuscar(e.target.value)} style={{ width: '100%', background: '#141414', border: '1px solid #2a2a2a', borderRadius: 14, padding: '14px', color: 'white' }} /></div>
-
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, padding: '0 12px' }}>
         {PAISES.map(p => {
           const cant = getCountPais(p.id)
@@ -189,15 +184,12 @@ export default function Page() {
           )
         })}
       </div>
-
       <div style={{ background: '#0f0f0f', margin: 12, borderRadius: 20, padding: 14, border: '1px solid #222' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}><span style={{ color: '#c9a86a', fontWeight: 800, fontSize: 13 }}>CADENAS EN {pais}</span><span style={{ color: '#888', fontSize: 13 }}>{porPais.length} noticias</span></div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           <button onClick={() => setCadena('ALL')} style={{ background: cadena === 'ALL'? '#c9a86a' : '#1e1e1e', color: cadena === 'ALL'? 'black' : '#888', borderRadius: 20, padding: '10px 16px', fontWeight: 900, border: '1px solid #333' }}>TODAS ({porPais.length})</button>
           {cadenas.map(c => (<button key={c} onClick={() => setCadena(c)} style={{ background: cadena === c? '#c9a86a' : '#1e1e1e', color: cadena === c? 'black' : 'white', borderRadius: 20, padding: '10px 16px', fontWeight: 800, border: '1px solid #333' }}>{c} ({contar[c]})</button>))}
         </div>
-      </div>
-
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, padding: '0 12px 20px' }}>
         {final.map(n => (
           <div key={n.id} onClick={() => abrir(n)} style={{ background: '#141414', borderRadius: 20, overflow: 'hidden', border: '1px solid #222' }}>
@@ -209,7 +201,6 @@ export default function Page() {
           </div>
         ))}
       </div>
-
       {sel && (
         <div onClick={() => setSel(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', zIndex: 99, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: 16, overflowY: 'auto' }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#1a1a1a', borderRadius: 20, width: '100%', maxWidth: 460, border: '1px solid #333', marginTop: 10, overflow: 'hidden' }}>
