@@ -31,7 +31,7 @@ function getChain(link: string) {
   if (h.includes('emol')) return 'EMOL'
   if (h.includes('latercera')) return 'LA TERCERA'
   if (h.includes('cooperativa')) return 'COOP'
-  return new URL(link).hostname.replace('www.','').split('.')[0].toUpperCase()
+  try { return new URL(link).hostname.replace('www.','').split('.')[0].toUpperCase() } catch { return 'OTROS' }
 }
 
 export default function Page() {
@@ -63,24 +63,26 @@ export default function Page() {
 
   const countBy = (s: string) => s === 'ALL'? news.length : news.filter(n => n.source?.toUpperCase() === s).length
   const filteredByCountry = news.filter(n => filter === 'ALL' || n.source?.toUpperCase() === filter)
-
-  // Cadenas de ese país
   const chainsInCountry = Array.from(new Set(filteredByCountry.map(n => n.chain))).sort()
   const chainCounts: any = {}
   filteredByCountry.forEach(n => { chainCounts[n.chain] = (chainCounts[n.chain] || 0) + 1 })
-
   const finalFiltered = filteredByCountry.filter(n => (chainFilter === 'ALL' || n.chain === chainFilter) && n.title?.toLowerCase().includes(search.toLowerCase()))
   const isRed = countdown <= 60
 
   return (
     <div style={{ background: '#0a0a0a', minHeight: '100vh', color: 'white', paddingBottom: 20 }}>
       <style>{`@keyframes pulse { 0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239,68,68,0.7) } 50% { transform: scale(1.08); box-shadow: 0 0 0 10px rgba(239,68,68,0) } 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239,68,68,0) } }.pulse { animation: pulse 0.8s infinite; }`}</style>
+
       <div style={{ paddingTop: 'max(16px, env(safe-area-inset-top))', paddingLeft: 12, paddingRight: 12, paddingBottom: 8, position: 'sticky', top: 0, background: '#0a0a0a', zIndex: 10 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h1 style={{ color: '#c9a86a', fontWeight: 900, fontSize: 24, margin: 0 }}>JANUS V3 ✓ <span style={{ fontSize: 11, color: '#888' }}>{finalFiltered.length}/{news.length}</span></h1>
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-            <div className={isRed? 'pulse' : ''} style={{ width: 12, height: 12, borderRadius: 99, background: isRed? '#ef4444' : '#22c55e' }}></div>
-            <div className={isRed? 'pulse' : ''} style={{ background: isRed? '#ef4444' : '#22c55e', color: isRed? 'white' : 'black', borderRadius: 20, padding: '6px 14px', fontWeight: 900, fontSize: 14 }}>● {Math.floor(countdown/60)}:{(countdown%60).toString().padStart(2,'0')}</div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button onClick={load} className={isRed? 'pulse' : ''} style={{ width: 38, height: 38, borderRadius: 99, background: isRed? '#ef4444' : '#22c55e', border: 'none', fontSize: 20, fontWeight: 900, cursor: 'pointer', color: isRed? 'white' : 'black' }}>
+              {isRed? '↻' : '✓'}
+            </button>
+            <div className={isRed? 'pulse' : ''} style={{ background: isRed? '#ef4444' : '#22c55e', color: isRed? 'white' : 'black', borderRadius: 20, padding: '6px 14px', fontWeight: 900, fontSize: 14 }}>
+              ● {Math.floor(countdown/60)}:{(countdown%60).toString().padStart(2,'0')}
+            </div>
           </div>
         </div>
         <p style={{ color: '#666', fontSize: 11, margin: '4px 0 10px 0' }}>Actualizado: {time} • 🟢 {finalFiltered.length} filtradas</p>
@@ -95,7 +97,6 @@ export default function Page() {
         })}
       </div>
 
-      {/* CADENAS - ESTO ES LO QUE RECORDABAS */}
       {filter!== 'ALL' && chainsInCountry.length > 0 && (
         <div style={{ background: '#141414', margin: '0 12px 12px 12px', borderRadius: 12, padding: 10, border: '1px solid #333' }}>
           <div style={{ color: '#c9a86a', fontSize: 11, fontWeight: 800, marginBottom: 8 }}>CADENAS EN {filter}: {filteredByCountry.length} noticias</div>
