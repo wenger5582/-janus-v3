@@ -37,19 +37,19 @@ function sacarCadena(item: any) {
 }
 
 export default function Page() {
-  const [noticias][setNoticias] = useState<any[]>([])
-  const [pais][setPais] = useState('ALL')
-  const [cadena][setCadena] = useState('ALL')
-  const [buscar][setBuscar] = useState('')
-  const [hora][setHora] = useState('')
-  const [segundos][setSegundos] = useState(300)
-  const [sel][setSel] = useState<any>(null)
-  const [idioma][setIdioma] = useState('es')
-  const [tituloTrad][setTituloTrad] = useState('')
-  const [contenidoOrig][setContenidoOrig] = useState('')
-  const [contenidoTrad][setContenidoTrad] = useState('')
-  const [cargando][setCargando] = useState(false)
-  const [traduciendo][setTraduciendo] = useState(false)
+  const [noticias, setNoticias] = useState<any[]>([])
+  const [pais, setPais] = useState('ALL')
+  const [cadena, setCadena] = useState('ALL')
+  const [buscar, setBuscar] = useState('')
+  const [hora, setHora] = useState('')
+  const [segundos, setSegundos] = useState(300)
+  const [sel, setSel] = useState<any>(null)
+  const [idioma, setIdioma] = useState('es')
+  const [tituloTrad, setTituloTrad] = useState('')
+  const [contenidoOrig, setContenidoOrig] = useState('')
+  const [contenidoTrad, setContenidoTrad] = useState('')
+  const [cargando, setCargando] = useState(false)
+  const [traduciendo, setTraduciendo] = useState(false)
 
   const cargar = async () => {
     const { data } = await supabase.from('news').select('*').order('created_at', { ascending: false }).limit(200)
@@ -73,7 +73,6 @@ export default function Page() {
     } catch { return texto }
   }
 
-  // FIX: ya no usa r.jina.ai directo, usa nuestro /api/article
   const traerArticulo = async (url: string) => {
     if (!url) return ''
     setCargando(true)
@@ -127,7 +126,6 @@ export default function Page() {
   return (
     <div style={{ background: '#000', minHeight: '100vh', color: 'white' }}>
       <style>{`@keyframes latir{0%{transform:scale(1)}50%{transform:scale(1.4)}100%{transform:scale(1)}}.latir{animation:latir 1s infinite}`}</style>
-
       <div style={{ padding: '16px 12px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1 style={{ color: '#c9a86a', margin: 0, fontWeight: 900 }}>JANUS V3</h1>
         <div style={{ background: '#c9a86a', borderRadius: 20, padding: '8px 14px', fontWeight: 900, display: 'flex', alignItems: 'center', gap: 8, color: 'black' }}>
@@ -135,13 +133,10 @@ export default function Page() {
           {Math.floor(segundos / 60)}:{(segundos % 60).toString().padStart(2, '0')}
         </div>
       </div>
-
       <div style={{ padding: '0 12px', color: '#666', fontSize: 12, marginBottom: 10 }}>Actualizado: {hora} • {final.length}/{noticias.length}</div>
-
       <div style={{ padding: '0 12px', marginBottom: 12 }}>
         <input placeholder="Buscar..." value={buscar} onChange={e => setBuscar(e.target.value)} style={{ width: '100%', background: '#141414', border: '1px solid #2a2a2a', borderRadius: 14, padding: '14px', color: 'white' }} />
       </div>
-
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, padding: '0 12px' }}>
         {PAISES.map(p => {
           const activo = pais === p.id
@@ -153,7 +148,6 @@ export default function Page() {
           )
         })}
       </div>
-
       <div style={{ background: '#0f0f0f', margin: 12, borderRadius: 20, padding: 14, border: '1px solid #222' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
           <span style={{ color: '#c9a86a', fontWeight: 800, fontSize: 13 }}>CADENAS EN {pais}</span>
@@ -166,14 +160,12 @@ export default function Page() {
           ))}
         </div>
       </div>
-
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, padding: '0 12px 20px' }}>
         {final.map(n => (
           <div key={n.id} onClick={() => abrir(n)} style={{ background: '#141414', borderRadius: 20, overflow: 'hidden', border: '1px solid #222' }}>
             <div style={{ position: 'relative', height: 120 }}>
               <img src={n.image || n.image_url || `https://picsum.photos/seed/${n.id}/300/200`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
               <div style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(0,0,0,0.75)', color: '#c9a86a', borderRadius: 12, padding: '4px 10px', fontSize: 11, fontWeight: 900 }}>{n.cadena}</div>
-              <div style={{ position: 'absolute', top: 8, right: 8, background: '#c9a86a', color: 'black', borderRadius: 12, padding: '3px 7px', fontSize: 10, fontWeight: 900 }}>🌐</div>
             </div>
             <div style={{ padding: 12 }}>
               <div style={{ fontSize: 14, fontWeight: 600, lineHeight: '18px', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' as any, overflow: 'hidden', minHeight: 54 }}>{n.title}</div>
@@ -185,7 +177,6 @@ export default function Page() {
           </div>
         ))}
       </div>
-
       {sel && (
         <div onClick={() => setSel(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.95)', zIndex: 99, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: 16, overflowY: 'auto' }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#1a1a1a', borderRadius: 20, width: '100%', maxWidth: 460, border: '1px solid #333', marginTop: 10, overflow: 'hidden' }}>
