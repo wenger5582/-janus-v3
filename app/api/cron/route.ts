@@ -31,16 +31,12 @@ export async function GET() {
         const link = getTag(it, 'link').trim()
         let description = getTag(it, 'description').replace(/<!\[CDATA\[|\]\]>/g, '').replace(/<[^>]+>/g, '').trim()
         const pubDate = getTag(it, 'pubDate')
-
         if (!title ||!link) continue
-        if (description.indexOf('Cobertura')!== -1) description = ''
-
+        if (description.includes('Cobertura')) description = ''
         allNews.push({
           title,
           link,
-          url: link,
           description,
-          content: description,
           source: feed.source,
           created_at: pubDate? new Date(pubDate).toISOString() : new Date().toISOString(),
         })
@@ -48,11 +44,9 @@ export async function GET() {
     } catch (e) {}
   }
 
-  if (allNews.length === 0) return Response.json({ ok: false })
-
+  if (allNews.length === 0) return Response.json({ ok: false, error: 'no news' })
   const unique = Array.from(new Map(allNews.map((n: any) => [n.link, n])).values())
   const { error } = await supabase.from('news').upsert(unique, { onConflict: 'link' })
-
   if (error) return Response.json({ ok: false, error: error.message })
   return Response.json({ ok: true, inserted: unique.length })
 }
