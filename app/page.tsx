@@ -73,13 +73,18 @@ export default function Page() {
     } catch { return texto }
   }
 
-  const traerArticulo = async (url: string) => {
+    const traerArticulo = async (url: string) => {
     if (!url) return ''
     setCargando(true)
     try {
       const r = await fetch(`/api/article?url=${encodeURIComponent(url)}`)
       const j = await r.json()
-      return (j.text || '').slice(0, 5000)
+      let t = (j.text || '').slice(0, 5000)
+      const low = t.toLowerCase()
+      if (!t || low === 'google news' || low === 'noticias de google' || low === 'новости google' || (low.includes('function()') && low.includes('fromcharcode'))) {
+        return ''
+      }
+      return t
     } catch { return '' }
     finally { setCargando(false) }
   }
