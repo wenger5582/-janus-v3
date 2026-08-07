@@ -1,38 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(req: NextRequest) {
-  const url = req.nextUrl.searchParams.get('url') || ''
-  if (!url) return NextResponse.json({ text: '' })
+  const text = req.nextUrl.searchParams.get('text') || ''
+  const target = req.nextUrl.searchParams.get('target') || 'es'
+  if (!text) return NextResponse.json({ translated: '' })
 
-  const fetchTimeout = async (u: string, ms = 4000) => {
-    const ctrl = new AbortController()
-    const id = setTimeout(() => ctrl.abort(), ms)
-    try {
-      const r = await fetch(u, { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: ctrl.signal } as any)
-      return r
-    } finally { clearTimeout(id) }
-  }
+  const clean = text.slice(0, 800).trim()
+  if (!clean) return NextResponse.json({ translated: '' })
 
-  const proxies = [
-    'https://r.jina.ai/' + url,
-    'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
-    'https://corsproxy.io/?' + encodeURIComponent(url),
-  ]
+  // 1. MyMemory primero - el mas confiable
+  try {
+    const url = 'https://api.mymemory.translated.net/get?q=' + encodeURIComponent(clean) + '&langpair=auto|' + target
+    const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } })
+    const j = await r.json()
+    const t = j?.responseData?.translatedText
+    if (t && t.length > 2 && t.toLowerCase().indexOf('mymemory warning') === -1) {
+      return NextResponse.json({ translated: t })
+    }
+  } catch (e) {}
 
-  for (const p of proxies) {
-    try {
-      const r = await fetchTimeout(p)
-      if (!r || !r.ok) continue
-      const html = await r.text()
-      if (!html || html.length < 200) continue
-      if (html.indexOf('AbuseAlleviation')!== -1) continue
-      if (html.length > 400 && html.indexOf('<html') === -1) {
-        return NextResponse.json({ text: html.slice(0, 6000) })
-      }
-      const matches = html.match(/<p[^>]*>([\s\S]*?)<\/p>/gi) || []
-      const paras = matches.map(function(m){ return m.replace(/<[^>]+>/g, '').trim() }).filter(function(t){ return t.length > 45 }).slice(0, 10).join('\n\n')
-      if (paras.length > 100) return NextResponse.json({ text: paras.slice(0, 6000) })
-    } catch (e) { continue }
-  }
-  return NextResponse.json({ text: '' })
+  // 2. Google como respaldo
+  try {
+    const url = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=' + target + '&dt=t&q=' + encodeURIComponent(clean)
+    const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } })
+    const j = await r.json()
+    if (j && j[0]) {
+      const t = j[0].map(function(x:any){ return x[0] }).join('')
+      if (t) return NextResponse.json({ translated: t })
+    }
+  } catch (e) {}
+
+  return NextResponse.json({ translated: text })
 }
