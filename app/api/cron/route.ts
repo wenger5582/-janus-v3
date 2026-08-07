@@ -13,10 +13,10 @@ function cleanDescription(raw: string) {
    .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
    .replace(/&amp;/g, '&').replace(/&quot;/g, '"')
    .replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ')
-  t = t.replace(/<[^>]+>/g, ' ') // quita todo html
-  t = t.replace(/https?:\/\/\S+/g, '') // quita links
+  t = t.replace(/<[^>]+>/g, ' ')
+  t = t.replace(/https?:\/\/\S+/g, '')
   t = t.replace(/\s+/g, ' ').trim()
-  return t.slice(0, 480) // FIX para el error 500 CHARS
+  return t.slice(0, 480)
 }
 
 export async function GET() {
@@ -40,19 +40,15 @@ export async function GET() {
       const res = await fetch(feed.url, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' })
       const rss = await res.text()
       const items = rss.match(/<item>[\s\S]*?<\/item>/g) || []
-
       for (const it of items) {
         const title = getTag(it, 'title').replace(/<!\[CDATA\[|\]\]>/g, '').trim()
         const link = getTag(it, 'link').trim()
-        const rawDesc = getTag(it, 'description')
-        let description = cleanDescription(rawDesc)
+        let description = cleanDescription(getTag(it, 'description'))
         const pubDate = getTag(it, 'pubDate')
-
         if (!title ||!link) continue
         if (!description || description.toLowerCase().includes('cobertura')) {
           description = title.slice(0, 180)
         }
-
         allNews.push({
           title,
           link,
@@ -65,11 +61,8 @@ export async function GET() {
   }
 
   if (allNews.length === 0) return Response.json({ ok: false, error: 'no news' })
-
   const unique = Array.from(new Map(allNews.map((n: any) => [n.link, n])).values())
-
   const { error } = await supabase.from('news').upsert(unique, { onConflict: 'link' })
   if (error) return Response.json({ ok: false, error: error.message })
-
   return Response.json({ ok: true, inserted: unique.length })
 }
