@@ -6,8 +6,7 @@ function getTag(str: string, tag: string) {
 }
 function cleanDescription(raw: string) {
   if (!raw) return ''
-  let t = raw.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ')
-  t = t.replace(/<[^>]+>/g, ' ').replace(/https?:\/\/\S+/g, '').replace(/\s+/g, ' ').trim()
+  let t = raw.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&nbsp;/g, ' ').replace(/<[^>]+>/g, ' ').replace(/https?:\/\/\S+/g, '').replace(/\s+/g, ' ').trim()
   return t.slice(0, 480)
 }
 export async function GET() {
@@ -19,25 +18,22 @@ export async function GET() {
     { url: 'https://news.google.com/rss?hl=en-US&gl=US&ceid=US:en', source: 'USA' },
     { url: 'https://news.google.com/rss?hl=en-GB&gl=GB&ceid=GB:en', source: 'UK' },
   ]
-  let allNews: any[] = []
-  for (const feed of feeds) {
+  let all: any[] = []
+  for (const f of feeds) {
     try {
-      const res = await fetch(feed.url, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' })
+      const res = await fetch(f.url, { headers: { 'User-Agent': 'Mozilla/5.0' }, cache: 'no-store' })
       const rss = await res.text()
       const items = rss.match(/<item>[\s\S]*?<\/item>/g) || []
       for (const it of items) {
         const title = getTag(it, 'title').replace(/<!\[CDATA\[|\]\]>/g, '').trim()
         const link = getTag(it, 'link').trim()
-        let description = cleanDescription(getTag(it, 'description'))
-        const pubDate = getTag(it, 'pubDate')
-        if (!title ||!link) continue
-        if (!description || description.toLowerCase().includes('cobertura')) description = title.slice(0, 180)
-        allNews.push({ title, link, description, source: feed.source, created_at: pubDate? new Date(pubDate).toISOString() : new Date().toISOString() })
+        let desc = cleanDescription(getTag(it, 'description'))
+        if (!desc || desc.toLowerCase().includes('cobertura')) desc = title
+        all.push({ title, link, description: desc, source: f.source, created_at: new Date(getTag(it, 'pubDate') || Date.now()).toISOString() })
       }
     } catch {}
   }
-  const unique = Array.from(new Map(allNews.map((n: any) => [n.link, n])).values())
-  const { error } = await supabase.from('news').upsert(unique, { onConflict: 'link' })
-  if (error) return Response.json({ ok: false, error: error.message })
+  const unique = Array.from(new Map(all.map(n => [n.link, n])).values())
+  await supabase.from('news').upsert(unique, { onConflict: 'link' })
   return Response.json({ ok: true, inserted: unique.length })
 }
