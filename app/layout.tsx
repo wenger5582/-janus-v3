@@ -1,3 +1,13 @@
-export default function RootLayout({children}:{children:React.ReactNode}){
- return <html><body style={{margin:0,background:"#000"}}>{children}</body></html>
+import './globals.css'
+
+export const metadata = {
+  title: 'JANUS V3',
+}
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="es">
+      <body style={{ background: 'black', color: 'white', margin: 0 }}>{children}</body>
+    </html>
+  )
 }
