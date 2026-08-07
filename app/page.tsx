@@ -37,19 +37,19 @@ function sacarCadena(item: any) {
 }
 
 export default function Page() {
-  const [noticias, setNoticias] = useState<any[]>([])
-  const [pais, setPais] = useState('ALL')
-  const [cadena, setCadena] = useState('ALL')
-  const [buscar, setBuscar] = useState('')
-  const [hora, setHora] = useState('')
-  const [segundos, setSegundos] = useState(300)
-  const [sel, setSel] = useState<any>(null)
-  const [idioma, setIdioma] = useState('es')
-  const [tituloTrad, setTituloTrad] = useState('')
-  const [contenidoOrig, setContenidoOrig] = useState('')
-  const [contenidoTrad, setContenidoTrad] = useState('')
-  const [cargando, setCargando] = useState(false)
-  const [traduciendo, setTraduciendo] = useState(false)
+  const [noticias][setNoticias] = useState<any[]>([])
+  const [pais][setPais] = useState('ALL')
+  const [cadena][setCadena] = useState('ALL')
+  const [buscar][setBuscar] = useState('')
+  const [hora][setHora] = useState('')
+  const [segundos][setSegundos] = useState(300)
+  const [sel][setSel] = useState<any>(null)
+  const [idioma][setIdioma] = useState('es')
+  const [tituloTrad][setTituloTrad] = useState('')
+  const [contenidoOrig][setContenidoOrig] = useState('')
+  const [contenidoTrad][setContenidoTrad] = useState('')
+  const [cargando][setCargando] = useState(false)
+  const [traduciendo][setTraduciendo] = useState(false)
 
   const cargar = async () => {
     const { data } = await supabase.from('news').select('*').order('created_at', { ascending: false }).limit(200)
@@ -73,13 +73,14 @@ export default function Page() {
     } catch { return texto }
   }
 
+  // FIX: ya no usa r.jina.ai directo, usa nuestro /api/article
   const traerArticulo = async (url: string) => {
     if (!url) return ''
     setCargando(true)
     try {
-      const r = await fetch(`https://r.jina.ai/${url}`)
-      const txt = await r.text()
-      return txt.slice(0, 5000)
+      const r = await fetch(`/api/article?url=${encodeURIComponent(url)}`)
+      const j = await r.json()
+      return (j.text || '').slice(0, 5000)
     } catch { return '' }
     finally { setCargando(false) }
   }
@@ -143,7 +144,6 @@ export default function Page() {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, padding: '0 12px' }}>
         {PAISES.map(p => {
-          const cant = p.id === 'ALL'? noticias.length : porPais.filter(n => p.id === 'ALL' || n.source?.toUpperCase() === p.id || (p.id === 'FRANCIA' && ['LE MONDE', 'LE FIGARO'].includes(n.cadena)) || (p.id === 'ESPAÑA' && ['EL PAIS', 'EL MUNDO'].includes(n.cadena))).length
           const activo = pais === p.id
           return (
             <button key={p.id} onClick={() => { setPais(p.id); setCadena('ALL') }} style={{ background: activo? '#c9a86a' : '#141414', color: activo? 'black' : 'white', borderRadius: 20, padding: '16px 6px', border: '1px solid #2a2a2a', fontWeight: 800 }}>
