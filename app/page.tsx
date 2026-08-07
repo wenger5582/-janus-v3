@@ -146,14 +146,20 @@ export default function Page() {
     }
 
     const realUrl = item.realLink || decodificarGoogleNews(item.link || item.url || '')
-    const full = await traerArticulo(realUrl)
-    const base = full || item.description || item.content || ''
+    let full = await traerArticulo(realUrl)
+
+    if(full && full.indexOf('Cobertura de noticias')!== -1) full = ''
+    if(full && full.indexOf('Full coverage')!== -1) full = ''
+
+    let base = full || item.description || item.content || ''
+    if(base.indexOf('Cobertura de noticias')!== -1) base = ''
+    if(base.indexOf('Full coverage')!== -1) base = ''
 
     setContenidoOrig(base)
     setCargando(false)
 
     if(!base){
-      setContenidoTrad('Este diario bloquea la extraccion. Usa el boton de abajo para leer la fuente original.')
+      setContenidoTrad('Este diario protege su contenido. Toca "Leer fuente original" para ver la noticia completa en su sitio web.')
       return
     }
 
