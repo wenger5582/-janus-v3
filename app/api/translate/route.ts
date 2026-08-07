@@ -1,56 +1,69 @@
-import { NextRequest, NextResponse } from 'next/server'
+export const dynamic = 'force-dynamic'
 
-function adivinarIdioma(texto: string) {
-  const t = texto.toLowerCase()
-  if (/[а-яё]/.test(t)) return 'ru'
-  if (/[áéíóúñ¿¡]/.test(t) || t.includes(' de la ') || t.includes(' de los ') || t.includes(' que ') || t.includes(' los ')) return 'es'
-  if (t.includes(' le ') && t.includes(' de ')) return 'fr'
-  return 'en'
+function splitInChunks(text: string, maxLen = 400) {
+  const sentences = text.split(/(?<=[.!?])\s+/)
+  let chunks: string[] = []
+  let current = ""
+  for (const s of sentences) {
+    if ((current + " " + s).length > maxLen) {
+      if (current) chunks.push(current.trim())
+      if (s.length > maxLen) {
+        // si una sola frase es gigante, cortala a la fuerza
+        for (let i = 0; i < s.length; i += maxLen) {
+          chunks.push(s.slice(i, i + maxLen))
+        }
+        current = ""
+      } else {
+        current = s
+      }
+    } else {
+      current = current? current + " " + s : s
+    }
+  }
+  if (current) chunks.push(current.trim())
+  return chunks.length? chunks : [text.slice(0, 400)]
 }
 
-export async function GET(req: NextRequest) {
-  const text = req.nextUrl.searchParams.get('text') || ''
-  const target = req.nextUrl.searchParams.get('target') || 'es'
-  if (!text) return NextResponse.json({ translated: '' })
-
-  const clean = text.slice(0, 600).trim()
-  if (!clean) return NextResponse.json({ translated: '' })
-
-  const source = adivinarIdioma(clean)
-  if (source === target) return NextResponse.json({ translated: clean })
-
-  // 1. MyMemory con idioma detectado ES|RU, EN|ES, etc.
+export async function POST(req: Request) {
   try {
-    const url = 'https://api.mymemory.translated.net/get?q=' + encodeURIComponent(clean) + '&langpair=' + source + '|' + target
-    const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } })
-    const j = await r.json()
-    const t = j?.responseData?.translatedText
-    if (t && t.length > 2) {
-      return NextResponse.json({ translated: t })
-    }
-  } catch (e) {}
+    const body = await req.json()
+    let { text, target } = body
 
-  // 2. Intento cruzado EN|target si el primero falla
-  if (source!== 'en') {
-    try {
-      const url = 'https://api.mymemory.translated.net/get?q=' + encodeURIComponent(clean) + '&langpair=en|' + target
-      const r = await fetch(url)
-      const j = await r.json()
-      const t = j?.responseData?.translatedText
-      if (t) return NextResponse.json({ translated: t })
-    } catch (e) {}
+    if (!text) return Response.json({ translated: "" })
+
+    // normaliza lo que te llega de los botones
+    if (target === "Русский") target = "ru"
+    if (target === "English") target = "en"
+    if (target === "Español") target = "es"
+
+    const tgt = target as string
+    // si es español y el texto ya está en español, no traducir
+    if (!text.trim()) return Response.json({ translated: "" })
+
+    const chunks = splitInChunks(text, 380)
+    let fullTranslated = ""
+
+    for (const chunk of chunks) {
+      // truco: langpair=|ru auto-detecta el origen
+      const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(chunk)}&langpair=|${tgt}`
+      const res = await fetch(url, { cache: "no-store" })
+      const data = await res.json()
+
+      let translated = data?.responseData?.translatedText || chunk
+
+      // si MyMemory devuelve el error de limite, usamos el chunk original
+      if (translated.includes("QUERY LENGTH LIMIT") || translated.includes("INVALID")) {
+        translated = chunk
+      }
+
+      fullTranslated += (fullTranslated? " " : "") + translated
+
+      // espera 200ms para no saturar MyMemory
+      await new Promise(r => setTimeout(r, 200))
+    }
+
+    return Response.json({ translated: fullTranslated })
+  } catch (e: any) {
+    return Response.json({ error: e.message, translated: "" }, { status: 500 })
   }
-
-  // 3. Google como ultimo respaldo
-  try {
-    const url = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=' + source + '&tl=' + target + '&dt=t&q=' + encodeURIComponent(clean)
-    const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } })
-    const j = await r.json()
-    if (j && j[0]) {
-      const t = j[0].map(function(x:any){ return x[0] }).join('')
-      if (t) return NextResponse.json({ translated: t })
-    }
-  } catch (e) {}
-
-  return NextResponse.json({ translated: text })
 }
